@@ -7,7 +7,16 @@
  * - clean shutdown on app quit
  */
 'use strict';
-const { spawn } = require('child_process');
+const { app, spawn } = (() => {
+  // `app` is only available inside the Electron main process; tests load this
+  // module under plain Node where electron is unavailable.
+  try {
+    const electron = require('electron');
+    return { app: electron.app || null, spawn: require('child_process').spawn };
+  } catch (_) {
+    return { app: null, spawn: require('child_process').spawn };
+  }
+})();
 const path = require('path');
 const readline = require('readline');
 const fs = require('fs');
@@ -30,32 +39,39 @@ class Backend {
     this.rl = null;
   }
 
-  pythonExecutable() {
-    const repoRoot = path.resolve(__dirname, '..', '..', '..');
-    // Packaged: bundled runtime under resources/backend/runtime/python/python.exe
-    const candidates = [
-      path.join(__dirname, '..', '..', '..', 'backend', 'runtime', 'python', 'python.exe'),
-      path.join(__dirname, '..', '..', '..', 'backend', 'runtime', 'python.exe'),
-    ];
-    for (const c of candidates) {
-      if (fs.existsSync(c)) return c;
+  /**
+   * Resource layout root.
+   *  - packaged: <install>\resources  (real files, outside app.asar)
+   *  - dev:      <repo>\desktop       (backend lives in the repo root)
+   */
+  resourcesRoot() {
+    if (app && app.isPackaged) {
+      return path.dirname(process.resourcesPath); // .../resources
     }
+    return path.resolve(__dirname, '..', '..', '..');
+  }
+
+  pythonExecutable() {
+    // Packaged: bundled runtime under resources/backend/runtime/python/python.exe
+    const packaged = path.join(
+      process.resourcesPath || '', 'backend', 'runtime', 'python', 'python.exe');
+    if (fs.existsSync(packaged)) return packaged;
     // Env override (CI / tests)
     if (process.env.FOXFall_PYTHON && fs.existsSync(process.env.FOXFall_PYTHON)) {
       return process.env.FOXFall_PYTHON;
     }
     // Dev: repo .venv, then system python
-    const venv = path.join(repoRoot, '.venv', 'Scripts', 'python.exe');
+    const venv = path.join(this.resourcesRoot(), '.venv', 'Scripts', 'python.exe');
     if (fs.existsSync(venv)) return venv;
     return 'python';
   }
 
   serverScript() {
-    // desktop/src/main/backend.cjs -> repo root is three levels up
-    const repoRoot = path.resolve(__dirname, '..', '..', '..');
-    const dev = path.join(repoRoot, 'backend', 'server.py');
+    const packaged = path.join(
+      process.resourcesPath || '', 'backend', 'server.py');
+    if (fs.existsSync(packaged)) return packaged;
+    const dev = path.join(this.resourcesRoot(), 'backend', 'server.py');
     if (fs.existsSync(dev)) return dev;
-    const packaged = path.join(__dirname, '..', '..', '..', 'backend', 'server.py');
     return packaged;
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "foxfall",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "FOXFall — Your videos. Your world.",
   "author": "FOXFall Project",
   "license": "MIT",
@@ -41,20 +41,20 @@
       {
         "from": "../core",
         "to": "core",
-        "filter": ["**/*.py"]
+        "filter": [
+          "**/*.py"
+        ]
       },
       {
         "from": "../utils",
         "to": "utils",
-        "filter": ["**/*.py"]
+        "filter": [
+          "**/*.py"
+        ]
       },
       {
         "from": "../foxfall_version.py",
         "to": "foxfall_version.py"
-      },
-      {
-        "from": "../assets",
-        "to": "assets"
       },
       {
         "from": "../bin/ffmpeg",
@@ -77,7 +77,7 @@
           ]
         }
       ],
-      "icon": "assets/foxfall.ico"
+      "icon": "build/foxfall.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -90,8 +90,5 @@
     "portable": {
       "artifactName": "FOXFall-Portable-${version}.${ext}"
     }
-  },
-  "allowScripts": {
-    "electron@33.2.1": true
   }
 }

@@ -39,3 +39,5 @@ desktop/backend/runtime/
 desktop/node_modules/
 desktop/dist/
 backend/runtime/
+desktop/build/
+desktop/build/*
