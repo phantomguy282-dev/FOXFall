@@ -63,10 +63,11 @@ jobs:
       - name: Build embedded Python runtime
         working-directory: ${{ github.workspace }}
         run: |
-          $release = (Invoke-WebRequest "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest" -UseBasicParsing -Headers @{ "User-Agent" = "foxfall-ci" }).Content | ConvertFrom-Json
-          $asset = $release.assets | Where-Object { $_.name -match "^cpython-3\.12.*x86_64-pc-windows-msvc-install_only\.tar\.gz$" } | Select-Object -First 1
+          # Pinned release asset (avoids api.github.com rate limits on CI).
+          # To update, change the tag/date components only.
+          $url = "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.12.16%2B20261110-x86_64-pc-windows-msvc-install_only.tar.gz"
           $tgz = "$env:RUNNER_TEMP\py.tar.gz"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tgz -UseBasicParsing
+          Invoke-WebRequest -Uri $url -OutFile $tgz -UseBasicParsing
           New-Item -ItemType Directory -Force backend\runtime\python | Out-Null
           tar -xzf $tgz -C backend\runtime\python --strip-components=1
           backend\runtime\python\python.exe --version
