@@ -10,7 +10,6 @@ const path = require('path');
 const fs = require('fs');
 
 process.env.FOXFall_PYTHON = process.env.FOXFall_PYTHON ||
-  path.resolve(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe');
 
 const Backend = require(path.resolve(__dirname, '..', 'src', 'main', 'backend.cjs'));
 
