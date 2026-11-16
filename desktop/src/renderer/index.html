@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>FOXFall</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="../assets/fox-48.png" alt="FOXFall" class="brand-logo">
+        <span class="brand-name">FOX<i>Fall</i></span>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="home"><span class="ico">⌂</span>Home</button>
+        <button class="nav-item" data-view="queue"><span class="ico">⇣</span>Queue<span class="pill" id="queuePill" hidden>0</span></button>
+        <button class="nav-item" data-view="history"><span class="ico">≡</span>History</button>
+        <button class="nav-item" data-view="settings"><span class="ico">⚙</span>Settings</button>
+        <button class="nav-item" data-view="about"><span class="ico">?;</span>About</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="backend-dot" id="backendDot"></div>
+        <span id="backendLabel">Connecting…</span>
+      </div>
+    </aside>
+
+    <!-- ============ MAIN ============ -->
+    <main class="main">
+      <!-- HOME -->
+      <section class="view" id="view-home">
+        <div class="hero">
+          <img src="../assets/fox-256.png" class="hero-fox" alt="">
+          <h1>Your videos. <span class="accent">Your world.</span></h1>
+          <p class="hero-sub">Download your favorite videos with FOXFall.</p>
+        </div>
+
+        <div class="url-box">
+          <input id="urlInput" type="text" spellcheck="false" autocomplete="off"
+                 placeholder="Paste a YouTube, Instagram or TikTok URL...">
+          <div class="url-actions">
+            <button class="btn btn-ghost" id="pasteBtn" title="Paste from clipboard">Paste</button>
+            <button class="btn btn-primary" id="analyzeBtn">Analyze</button>
+            <button class="btn btn-ghost" id="clearBtn">Clear</button>
+          </div>
+        </div>
+        <div class="message" id="homeMessage"></div>
+
+        <!-- ANALYSIS CARD -->
+        <div class="card analysis" id="analysisCard" hidden>
+          <img id="thumb" class="thumb" alt="">
+          <div class="analysis-info">
+            <h2 id="videoTitle"></h2>
+            <div class="meta">
+              <span class="chip" id="platformChip"></span>
+              <span id="uploader"></span>
+              <span id="duration"></span>
+              <span id="views"></span>
+            </div>
+            <div class="pickers">
+              <label>Quality
+                <select id="qualitySelect"></select>
+              </label>
+              <label>Format
+                <select id="formatSelect"></select>
+              </label>
+            </div>
+            <div class="analysis-actions">
+              <button class="btn btn-primary" id="downloadBtn">Download</button>
+              <button class="btn btn-ghost" id="openFolderBtn">Open folder</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- QUEUE -->
+      <section class="view" id="view-queue" hidden>
+        <h1 class="view-title">Download Queue</h1>
+        <div id="queueList" class="queue-list"></div>
+        <div class="empty" id="queueEmpty">No downloads yet. Paste a URL on the Home tab.</div>
+        <div class="queue-actions">
+          <button class="btn btn-ghost" id="openDownloadsBtn">Open download folder</button>
+          <button class="btn btn-danger" id="clearQueueBtn">Clear finished</button>
+        </div>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="view" id="view-history" hidden>
+        <h1 class="view-title">History</h1>
+        <div class="history-actions">
+          <button class="btn btn-danger" id="clearHistoryBtn">Clear history</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+        <div class="empty" id="historyEmpty">Nothing downloaded yet.</div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="view" id="view-settings" hidden>
+        <h1 class="view-title">Settings</h1>
+        <div class="settings-grid">
+          <div class="setting">
+            <label>Download folder</label>
+            <div class="row">
+              <input id="setDownloadDir" type="text" readonly>
+              <button class="btn btn-ghost" id="browseDirBtn">Browse…</button>
+            </div>
+          </div>
+          <div class="setting">
+            <label>Default quality</label>
+            <select id="setQuality">
+              <option value="best">Best available</option>
+              <option value="2160">2160p (4K)</option>
+              <option value="1440">1440p</option>
+              <option value="1080">1080p</option>
+              <option value="720">720p</option>
+              <option value="480">480p</option>
+              <option value="360">360p</option>
+              <option value="mp3">MP3 (audio)</option>
+            </select>
+          </div>
+          <div class="setting">
+            <label>Preferred format</label>
+            <select id="setFormat">
+              <option value="mp4">MP4</option>
+              <option value="webm">WEBM</option>
+              <option value="mp3">MP3 (audio only)</option>
+            </select>
+          </div>
+          <div class="setting checkbox">
+            <label><input type="checkbox" id="setNotifications"> Show notifications</label>
+          </div>
+          <div class="setting checkbox">
+            <label><input type="checkbox" id="setUpdates"> Check for yt-dlp updates</label>
+          </div>
+        </div>
+        <div class="settings-diagnostics">
+          <h3>System</h3>
+          <div id="diagInfo" class="diag"></div>
+          <button class="btn btn-ghost" id="runDiagBtn">Run full diagnostics</button>
+          <div id="diagResults" class="diag"></div>
+        </div>
+        <div class="save-row">
+          <button class="btn btn-primary" id="saveSettingsBtn">Save settings</button>
+          <span class="save-state" id="saveState"></span>
+        </div>
+      </section>
+
+      <!-- ABOUT -->
+      <section class="view" id="view-about" hidden>
+        <div class="about">
+          <img src="../assets/fox-256.png" class="about-fox" alt="">
+          <h1>FOX<span class="accent">Fall</span></h1>
+          <p class="tagline">Your videos. Your world.</p>
+          <div id="aboutInfo" class="about-info"></div>
+          <p class="about-note">FOXFall downloads only publicly accessible content you are
+            authorized to download. It never bypasses authentication, CAPTCHA or paywalls.
+            Not affiliated with YouTube, Instagram or TikTok.</p>
+          <p class="about-license">MIT License · <span id="aboutVersion"></span></p>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

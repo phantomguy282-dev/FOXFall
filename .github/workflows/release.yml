@@ -1,5 +1,5 @@
-# GitHub Release automation for FOXFall
-name: Build and Release FOXFall
+# FOXFall 2.0 — Windows desktop build & release (Electron + Python backend)
+name: Build and Release FOXFall Desktop
 
 on:
   push:
@@ -10,58 +10,117 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-desktop:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python (backend tests)
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install backend test dependencies
+        working-directory: ${{ github.workspace }}
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          python -m venv .venv
+          .venv\Scripts\python -m pip install --upgrade pip
+          .venv\Scripts\python -m pip install -r requirements.txt pytest
 
-      - name: Download FFmpeg (portable, official gyan.dev build)
+      - name: Download FFmpeg (official gyan.dev essentials build)
+        working-directory: ${{ github.workspace }}
         run: |
           New-Item -ItemType Directory -Force bin\ffmpeg | Out-Null
           $url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
           $zip = "$env:RUNNER_TEMP\ffmpeg.zip"
           Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
           Expand-Archive -Path $zip -DestinationPath "$env:RUNNER_TEMP\ffmpeg-x" -Force
-          $exe = Get-ChildItem "$env:RUNNER_TEMP\ffmpeg-x" -Recurse -Filter ffmpeg.exe | Select-Object -First 1
-          $probe = Get-ChildItem "$env:RUNNER_TEMP\ffmpeg-x" -Recurse -Filter ffprobe.exe | Select-Object -First 1
-          Copy-Item $exe.FullName bin\ffmpeg\
-          Copy-Item $probe.FullName bin\ffmpeg\
+          Copy-Item (Get-ChildItem "$env:RUNNER_TEMP\ffmpeg-x" -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName bin\ffmpeg\
+          Copy-Item (Get-ChildItem "$env:RUNNER_TEMP\ffmpeg-x" -Recurse -Filter ffprobe.exe | Select-Object -First 1).FullName bin\ffmpeg\
           bin\ffmpeg\ffmpeg.exe -version | Select-Object -First 1
 
-      - name: Run tests
-        run: |
-          pip install pytest
-          python -m pytest tests -q --ignore=tests/test_tiktok_live.py --ignore=tests/test_progress_live.py
+      - name: Run backend tests (pytest)
+        working-directory: ${{ github.workspace }}
+        run: .venv\Scripts\python -m pytest tests -q --ignore=tests/backend_validation.py --ignore=tests/test_tiktok_live.py --ignore=tests/test_progress_live.py
 
-      - name: Build FOXFall.exe
-        run: python -m PyInstaller foxfall.spec --noconfirm
+      - name: Install Node dependencies
+        run: npm ci
 
-      - name: Smoke test the build
-        run: |
-          if (-not (Test-Path "dist\FOXFall\FOXFall.exe")) { throw "FOXFall.exe missing" }
-          if (-not (Test-Path "dist\FOXFall\_internal\bin\ffmpeg\ffmpeg.exe")) { throw "bundled ffmpeg missing" }
+      - name: Run desktop IPC tests
+        env:
+          FOXFall_PYTHON: ${{ github.workspace }}\.venv\Scripts\python.exe
+        run: node --test tests/ipc.test.cjs
 
-      - name: Package portable zip
+      - name: Build embedded Python runtime
+        working-directory: ${{ github.workspace }}
         run: |
-          Compress-Archive -Path dist\FOXFall -DestinationPath FOXFall-windows-portable.zip
+          $release = (Invoke-WebRequest "https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest" -UseBasicParsing -Headers @{ "User-Agent" = "foxfall-ci" }).Content | ConvertFrom-Json
+          $asset = $release.assets | Where-Object { $_.name -match "^cpython-3\.12.*x86_64-pc-windows-msvc-install_only\.tar\.gz$" } | Select-Object -First 1
+          $tgz = "$env:RUNNER_TEMP\py.tar.gz"
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tgz -UseBasicParsing
+          New-Item -ItemType Directory -Force backend\runtime\python | Out-Null
+          tar -xzf $tgz -C backend\runtime\python --strip-components=1
+          backend\runtime\python\python.exe --version
+
+      - name: Install backend deps into bundled runtime
+        working-directory: ${{ github.workspace }}
+        run: |
+          backend\runtime\python\python.exe -m pip install --no-warn-script-location -r requirements.txt
+          backend\runtime\python\python.exe -c "import yt_dlp, curl_cffi; print('backend deps OK')"
+
+      - name: Build FOXFall desktop (NSIS + portable)
+        run: |
+          $env:ELECTRON_BUILDER_ALLOW_UNRESOLVED = "1"
+          npx electron-builder --win nsis portable --x64 --config.win.signAndEditExecutable=false
+
+      - name: Smoke test packaged layout
+        shell: pwsh
+        run: |
+          $up = Join-Path (Get-Location) "dist\win-unpacked"
+          foreach ($required in @(
+            "$up\FOXFall.exe",
+            "$up\resources\backend\server.py",
+            "$up\resources\backend\runtime\python\python.exe",
+            "$up\resources\bin\ffmpeg\ffmpeg.exe",
+            "$up\resources\core\downloader.py",
+            "$up\resources\utils\ffmpeg.py"
+          )) {
+            if (-not (Test-Path $required)) { throw "missing packaged file: $required" }
+          }
+          # backend must boot inside the packaged layout
+          Push-Location "$up\resources\backend"
+          try {
+            $env:PYTHONIOENCODING = "utf-8"
+            '{"id":1,"action":"ping","payload":{}}' |
+              & ".\runtime\python\python.exe" server.py 2>$null |
+              Select-String '"ready"'
+          } finally { Pop-Location }
+          Write-Host "Packaged layout OK"
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File -Include *.exe,*.blockmap -Recurse -Depth 0 | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content dist\SHA256SUMS.txt
+          Get-Content dist\SHA256SUMS.txt
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            FOXFall-windows-portable.zip
+            desktop/dist/FOXFall-Setup-*.exe
+            desktop/dist/FOXFall-Portable-*.exe
+            desktop/dist/SHA256SUMS.txt
           generate_release_notes: true
           draft: false
           prerelease: false

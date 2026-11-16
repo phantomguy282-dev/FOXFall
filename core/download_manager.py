@@ -80,15 +80,18 @@ class DownloadManager:
         if not pending:
             return None
 
-        dl = Downloader(
-            url=pending.info.url,
-            quality=pending.quality,
-            fmt=pending.fmt,
-            output_dir=pending.output_dir,
-        )
-        pending.downloader = dl
-        pending.state = dl.state
-        pending.thread = dl.start()
+        # Reuse the Downloader created by the caller, which carries the
+        # FFmpeg location and the chosen quality. Constructing a fresh one
+        # here silently discarded the FFmpeg path, which broke downloads.
+        if pending.downloader is None:
+            pending.downloader = Downloader(
+                url=pending.info.url,
+                quality=pending.quality,
+                fmt=pending.fmt,
+                output_dir=pending.output_dir,
+            )
+        pending.state = pending.downloader.state
+        pending.thread = pending.downloader.start()
         return pending
 
     # ------------------------------------------------------------------ #

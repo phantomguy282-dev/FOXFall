@@ -1,0 +1,97 @@
+{
+  "name": "foxfall",
+  "version": "2.0.0",
+  "description": "FOXFall — Your videos. Your world.",
+  "author": "FOXFall Project",
+  "license": "MIT",
+  "private": true,
+  "main": "src/main/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win --dir --x64",
+    "dist": "electron-builder --win nsis portable --x64",
+    "test": "node --test tests/"
+  },
+  "devDependencies": {
+    "electron": "^45.3.2",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "dev.phantomguy.foxfall",
+    "productName": "FOXFall",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/main/**/*",
+      "src/renderer/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "server.py",
+          "runtime/**/*"
+        ]
+      },
+      {
+        "from": "../core",
+        "to": "core",
+        "filter": ["**/*.py"]
+      },
+      {
+        "from": "../utils",
+        "to": "utils",
+        "filter": ["**/*.py"]
+      },
+      {
+        "from": "../foxfall_version.py",
+        "to": "foxfall_version.py"
+      },
+      {
+        "from": "../assets",
+        "to": "assets"
+      },
+      {
+        "from": "../bin/ffmpeg",
+        "to": "bin/ffmpeg"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/foxfall.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FOXFall",
+      "artifactName": "FOXFall-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "FOXFall-Portable-${version}.${ext}"
+    }
+  },
+  "allowScripts": {
+    "electron@33.2.1": true
+  }
+}

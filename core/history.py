@@ -19,13 +19,23 @@ HISTORY_PATH = os.path.join(HISTORY_DIR, "history.json")
 _lock = threading.Lock()
 
 
+def _history_path() -> str:
+    """Packaged desktop app keeps history in per-user app data."""
+    try:
+        from core.settings import _paths
+        _config_dir, _config_path = _paths()
+        return os.path.join(os.path.dirname(_config_path), "history.json")
+    except Exception:  # noqa: BLE001 - fallback to legacy location
+        return HISTORY_PATH
+
+
 def _empty() -> Dict[str, Any]:
     return {"items": [], "next_id": 1}
 
 
 def _load() -> Dict[str, Any]:
     try:
-        with open(HISTORY_PATH, "r", encoding="utf-8") as fh:
+        with open(_history_path(), "r", encoding="utf-8") as fh:
             data = json.load(fh)
         if isinstance(data, dict) and isinstance(data.get("items"), list):
             data.setdefault("next_id", 1)
@@ -39,11 +49,11 @@ def _load() -> Dict[str, Any]:
 
 def _save(data: Dict[str, Any]) -> None:
     try:
-        os.makedirs(HISTORY_DIR, exist_ok=True)
-        tmp = HISTORY_PATH + ".tmp"
+        os.makedirs(os.path.dirname(_history_path()), exist_ok=True)
+        tmp = _history_path() + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=2)
-        os.replace(tmp, HISTORY_PATH)
+        os.replace(tmp, _history_path())
     except OSError:
         pass
 

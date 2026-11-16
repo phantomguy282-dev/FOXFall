@@ -8,12 +8,49 @@ from __future__ import annotations
 import copy
 import json
 import os
+import sys
 import threading
 from typing import Any, Dict
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_DIR = os.path.join(_PROJECT_ROOT, "config")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "settings.json")
+
+
+def _user_data_dir() -> str:
+    """
+    Writable per-user directory for settings/history/downloads in the
+    packaged desktop app (kept OUTSIDE the install dir so updates never
+    erase user data).
+    """
+    if os.environ.get("FOXFall_USER_DATA"):
+        return os.environ["FOXFall_USER_DATA"]
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        return os.path.join(appdata, "FOXFall")
+    return _PROJECT_ROOT
+
+
+def _looks_packaged() -> bool:
+    """
+    True when running from an Electron packaged layout, where the Python
+    modules live directly under <app>/resources/ (core/, utils/,
+    backend/server.py all sit in that folder).
+    """
+    if os.path.basename(_PROJECT_ROOT).lower() == "resources":
+        return True
+    if os.path.basename(os.path.dirname(_PROJECT_ROOT)).lower() == "resources":
+        return True
+    return getattr(sys, "frozen", False)
+
+
+def _paths() -> tuple:
+    """(config_dir, config_path) honoring the packaged user-data layout."""
+    if _looks_packaged() or os.environ.get("FOXFall_USER_DATA"):
+        base = _user_data_dir()
+        return (os.path.join(base, "config"),
+                os.path.join(base, "config", "settings.json"))
+    return CONFIG_DIR, CONFIG_PATH
 
 DEFAULTS: Dict[str, Any] = {
     "download_dir": "",                  # empty = <project>/downloads
@@ -67,8 +104,9 @@ def _coerce(key: str, value: Any) -> Any:
 def load() -> Dict[str, Any]:
     """Load settings from disk, merging over defaults. Never raises."""
     data = copy.deepcopy(DEFAULTS)
+    _config_dir, config_path = _paths()
     try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as fh:
+        with open(config_path, "r", encoding="utf-8") as fh:
             stored = json.load(fh)
         if isinstance(stored, dict):
             for key, value in stored.items():
@@ -97,13 +135,14 @@ def save(settings: Dict[str, Any]) -> bool:
             return False
         clean[key] = result
     with _lock:
+        config_dir, config_path = _paths()
         try:
-            os.makedirs(CONFIG_DIR, exist_ok=True)
-            tmp = CONFIG_PATH + ".tmp"
+            os.makedirs(config_dir, exist_ok=True)
+            tmp = config_path + ".tmp"
             with open(tmp, "w", encoding="utf-8") as fh:
                 json.dump(clean, fh, indent=4)
                 fh.write("\n")
-            os.replace(tmp, CONFIG_PATH)
+            os.replace(tmp, config_path)
             return True
         except OSError:
             return False
@@ -125,7 +164,10 @@ def resolve_download_dir(settings: Dict[str, Any] | None = None) -> str:
     s = settings or load()
     directory = s.get("download_dir") or ""
     if not directory:
-        directory = os.path.join(_PROJECT_ROOT, "downloads")
+        if _looks_packaged() or os.environ.get("FOXFall_USER_DATA"):
+            directory = os.path.join(_user_data_dir(), "Downloads")
+        else:
+            directory = os.path.join(_PROJECT_ROOT, "downloads")
     directory = os.path.abspath(directory)
     try:
         os.makedirs(directory, exist_ok=True)

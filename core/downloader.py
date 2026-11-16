@@ -194,7 +194,12 @@ class Downloader:
             }]
         else:
             if self._ffmpeg_available:
-                opts["format"] = self.quality.format_selector
+                # Always end the selector chain with an unconditional
+                # fallback so a valid video never fails with
+                # "Requested format is not available".
+                opts["format"] = (
+                    f"{self.quality.format_selector}/bestvideo*+bestaudio/best"
+                )
                 if self.fmt in ("mp4", "webm"):
                     opts["merge_output_format"] = self.fmt
                     opts["postprocessors"] = [{
@@ -202,16 +207,18 @@ class Downloader:
                         "preferedformat": self.fmt,
                     }]
             else:
-                # No FFmpeg: fall back to best single progressive format so
-                # downloads still succeed (limited to formats with both
-                # audio+video, typically max 720p on YouTube).
-                height_filter = ""
+                # No FFmpeg: prefer a progressive format (audio+video muxed)
+                # so downloads still succeed. Progressive streams top out at
+                # ~720p on YouTube; if none exists (DASH-only video), fall
+                # back to best single stream and let yt-dlp report honestly.
+                height_filter = f"[height<={self.quality.height}]" if self.quality.height else ""
                 if self.quality.height:
-                    height_filter = f"[height<={self.quality.height}]"
-                opts["format"] = (
-                    f"best[height>0]{height_filter}/best"
-                    if not height_filter else f"best{height_filter}/best"
-                )
+                    opts["format"] = (
+                        f"best[height<={self.quality.height}][vcodec!=none][acodec!=none]/"
+                        f"best[height<={self.quality.height}]/best"
+                    )
+                else:
+                    opts["format"] = "best[vcodec!=none][acodec!=none]/best"
         return opts
 
     # ------------------------------------------------------------------ #
@@ -229,9 +236,12 @@ class Downloader:
                 if info and "entries" in info:
                     entries = [e for e in info["entries"] if e]
                     info = entries[0] if entries else info
-                if info:
-                    state.filename = state.filename or ydl.prepare_filename(info)
-            state.filepath = self._resolve_final_path(state.filename)
+                # prepare_filename on the FINAL info dict reflects the
+                # post-processed container; the progress-hook filename may be
+                # an intermediate format file (.f301.mp4 etc.), which must
+                # never be treated as the result.
+                base_guess = ydl.prepare_filename(info) if info else ""
+            state.filepath = self._resolve_final_path(base_guess or state.filename)
             state.status = "done"
             state.percent = 100.0
         except yt_dlp.utils.DownloadCancelled if yt_dlp else Exception:
@@ -245,22 +255,44 @@ class Downloader:
 
     def _resolve_final_path(self, prepared: str) -> str:
         """
-        yt-dlp post-processing may change the extension (mp3/remux).
-        Prefer the most recently written file matching the base name.
+        yt-dlp post-processing may change the extension (mp3/remux) and the
+        progress-hook filename can be an intermediate format file. Prefer the
+        most recently written real file matching the base stem; verify it
+        exists before returning it.
         """
-        if not prepared:
-            return ""
-        base_dir = os.path.dirname(prepared) or self.output_dir
-        stem = os.path.splitext(os.path.basename(prepared))[0]
+        base = prepared or ""
+        if base:
+            base_dir = os.path.dirname(base) or self.output_dir
+            stem = os.path.splitext(os.path.basename(base))[0]
+            # drop yt-dlp format-suffixes like ".f301" from the stem
+            stem = re.sub(r"\.f\d+$", "", stem)
+            try:
+                candidates = [
+                    os.path.join(base_dir, f)
+                    for f in os.listdir(base_dir)
+                    if f.startswith(stem) and not re.search(r"\.f\d+\.", f)
+                    and not f.endswith((".part", ".ytdl", ".tmp"))
+                ]
+                if candidates:
+                    return max(candidates, key=os.path.getmtime)
+            except OSError:
+                pass
+        # Last resort: newest media file written in the output dir since we
+        # started. This guarantees a real file is reported when yt-dlp had to
+        # sanitize the title differently than prepare_filename suggested.
         try:
-            candidates = [os.path.join(base_dir, f)
-                          for f in os.listdir(base_dir)
-                          if f.startswith(stem)]
-            if candidates:
-                return max(candidates, key=os.path.getmtime)
+            media = [
+                os.path.join(self.output_dir, f)
+                for f in os.listdir(self.output_dir)
+                if f.lower().endswith((".mp4", ".webm", ".mkv", ".mp3", ".m4a"))
+                and os.path.getmtime(os.path.join(self.output_dir, f))
+                >= self._start_time - 1
+            ]
+            if media:
+                return max(media, key=os.path.getmtime)
         except OSError:
             pass
-        return prepared
+        return base
 
     def start(self) -> threading.Thread:
         self._thread = threading.Thread(target=self._run, daemon=True,

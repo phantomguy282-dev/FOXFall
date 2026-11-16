@@ -66,7 +66,7 @@ def test_resolve_download_dir_fallback_default(tmp_path, monkeypatch):
 @pytest.fixture()
 def hist_path(tmp_path, monkeypatch):
     p = tmp_path / "history.json"
-    monkeypatch.setattr(history_mod, "HISTORY_PATH", str(p))
+    monkeypatch.setattr(history_mod, "_history_path", lambda: str(p))
     return p
 
 

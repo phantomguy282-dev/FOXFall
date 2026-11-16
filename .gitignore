@@ -33,3 +33,9 @@ desktop.ini
 .env
 *.pem
 *.key
+# Bundled binaries (downloaded by CI) 
+bin/ffmpeg/*.exe
+desktop/backend/runtime/
+desktop/node_modules/
+desktop/dist/
+backend/runtime/
