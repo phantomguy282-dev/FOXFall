@@ -1,0 +1,6 @@
+# FOXFall - dependencies
+yt-dlp>=2026.10.26
+rich>=13.7.0
+requests>=2.31.0
+# browser impersonation for TikTok (yt-dlp uses it when available)
+curl_cffi>=0.10.0

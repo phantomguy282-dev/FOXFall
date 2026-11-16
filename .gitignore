@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Build artefacts
+build/
+dist/
+*.spec.bak
+*.manifest
+
+# User data / local config (never commit)
+logs/
+downloads/
+config/history.json
+config/settings.json.tmp
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Secrets
+.env
+*.pem
+*.key

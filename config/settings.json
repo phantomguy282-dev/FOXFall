@@ -1,0 +1,12 @@
+{
+    "download_dir": "",
+    "preferred_format": "mp4",
+    "default_quality": "720",
+    "startup_animation": true,
+    "sound_effects": true,
+    "check_updates": true,
+    "show_notifications": true,
+    "theme": "fox",
+    "max_concurrent_downloads": 1,
+    "history_limit": 500
+}
