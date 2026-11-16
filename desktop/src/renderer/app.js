@@ -149,6 +149,18 @@ async function analyze() {
   if (!url) return;
   $('analyzeBtn').disabled = true;
   setMessage('homeMessage', 'Analyzing…');
+  const status = await api.backendStatus();
+  if (!status.ready) {
+    $('analyzeBtn').disabled = false;
+    setMessage('homeMessage',
+      status.restarting
+        ? 'The backend is restarting — try again in a few seconds.'
+        : 'Backend unavailable. FOXFall could not start its download engine. '
+          + 'Reinstall the application; if the problem persists, check the '
+          + 'diagnostics in Settings.',
+      'error');
+    return;
+  }
   const res = await api.invoke('analyze_url', { url });
   $('analyzeBtn').disabled = false;
   if (!res.ok) {

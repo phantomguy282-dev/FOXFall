@@ -78,8 +78,19 @@ class Backend {
   async start() {
     this.shuttingDown = false;
     const script = this.serverScript();
-    if (!fs.existsSync(script)) throw new Error(`backend script missing: ${script}`);
+    if (!fs.existsSync(script)) {
+      const msg = `backend server script missing (looked at: ${script}). `
+        + 'The installation appears to be incomplete — reinstall FOXFall.';
+      this.onEvent({ event: 'backend_failed', message: msg });
+      throw new Error(msg);
+    }
     const exe = this.pythonExecutable();
+    if (exe === 'python') {
+      const msg = 'No Python runtime found for the backend. '
+        + 'The installation appears incomplete — reinstall FOXFall.';
+      this.onEvent({ event: 'backend_failed', message: msg });
+      throw new Error(msg);
+    }
 
     const spawnOpts = {
       cwd: path.dirname(script),
@@ -94,6 +105,7 @@ class Backend {
 
     this.proc = spawn(exe, [script, '--stdio'], spawnOpts);
     this._ready = false;
+    this.lastStderr = '';
 
     this.proc.on('error', (err) => {
       this._ready = false;
@@ -115,13 +127,25 @@ class Backend {
 
     this.proc.stderr.on('data', (chunk) => {
       const text = String(chunk).trim();
-      if (text) this.onEvent({ event: 'log', level: 'error', message: text.slice(0, 500) });
+      if (text) {
+        this.lastStderr = text.slice(0, 800);
+        this.onEvent({ event: 'log', level: 'error', message: this.lastStderr });
+      }
     });
 
     this.rl = readline.createInterface({ input: this.proc.stdout });
     this.rl.on('line', (line) => this.handleLine(line));
 
-    await this.waitForReady(15000);
+    try {
+      await this.waitForReady(20000);
+    } catch (err) {
+      // Surface the real cause: stderr tail + spawn diagnostics
+      const detail = this.lastStderr
+        ? `backend startup failed: ${err.message} | stderr: ${this.lastStderr}`
+        : `backend startup failed: ${err.message} (python: ${exe})`;
+      this.onEvent({ event: 'backend_failed', message: detail });
+      throw new Error(detail);
+    }
     return true;
   }
 
