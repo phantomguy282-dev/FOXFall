@@ -79,7 +79,7 @@
           ]
         }
       ],
-      "icon": "build/foxfall.ico"
+      "icon": "../assets/foxfall.ico"
     },
     "nsis": {
       "oneClick": false,

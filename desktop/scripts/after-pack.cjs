@@ -32,7 +32,7 @@ module.exports = async function afterPack(context) {
     context.appOutDir, `${context.packager.appInfo.productFilename}.exe`);
   console.log(`after-pack: embedding icon into ${exePath}`);
   await rceditWithRetry(rcedit, exePath, {
-    icon: path.resolve(__dirname, '..', 'build', 'foxfall.ico'),
+    icon: path.resolve(__dirname, '..', '..', 'assets', 'foxfall.ico'),
     'version-string': {
       ProductName: 'FOXFall',
       FileDescription: 'FOXFall - Your videos. Your world.',
