@@ -21,16 +21,33 @@ ALT_BUNDLED_DIR = os.path.join(_PROJECT_ROOT, "bin")        # legacy layout
 
 
 def _frozen_bundled_dir() -> Optional[str]:
-    """PyInstaller-frozen app: bin/ffmpeg next to the internal dir."""
-    if getattr(sys, "frozen", False):
-        base = os.path.dirname(sys.executable)
-        for candidate in (
-            os.path.join(base, "bin", "ffmpeg"),
-            os.path.join(getattr(sys, "_MEIPASS", base), "bin", "ffmpeg"),
-            os.path.join(base, "_internal", "bin", "ffmpeg"),
-        ):
-            if os.path.isfile(os.path.join(candidate, _exe("ffmpeg"))):
-                return candidate
+    """
+    Locate FFmpeg in frozen/packaged layouts:
+      - Electron + PyInstaller backend exe at
+        <resources>/backend/foxfall-backend/foxfall-backend.exe
+        -> FFmpeg at <resources>/bin/ffmpeg
+      - PyInstaller onedir generic: exe_dir/ffmpeg
+      - Electron python-runtime layout: <resources>/bin/ffmpeg via exe 3 up
+      - PyInstaller onefile: sys._MEIPASS/ffmpeg
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    base = getattr(sys, "_MEIPASS", None)
+
+    candidates = [
+        os.path.join(exe_dir, "..", "..", "..", "bin", "ffmpeg"),  # backend exe
+        os.path.join(exe_dir, "..", "..", "bin", "ffmpeg"),
+        os.path.join(exe_dir, "bin", "ffmpeg"),
+        os.path.join(exe_dir, "ffmpeg"),
+        os.path.join(exe_dir, "_internal", "ffmpeg"),
+    ]
+    if base:
+        candidates.append(os.path.join(base, "ffmpeg"))
+    for c in candidates:
+        c2 = os.path.normpath(c)
+        if os.path.isfile(os.path.join(c2, _exe("ffmpeg"))):
+            return c2
     return None
 
 

@@ -19,6 +19,8 @@ const Backend = require('./backend.cjs');
 let mainWindow = null;
 /** @type {Backend | null} */
 let backend = null;
+/** @type {(line: string) => void} */
+let logger = () => {};
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -32,16 +34,35 @@ if (!gotLock) {
   });
 
   // User data lives outside the installation dir ( survives updates )
-  app.setPath('userData', path.join(app.getPath('appData'), 'FOXFall'));
+  const userData = path.join(app.getPath('appData'), 'FOXFall');
+  app.setPath('userData', userData);
+
+  // Diagnostic log file in app data (no sensitive info: paths + messages only)
+  try {
+    fs.mkdirSync(userData, { recursive: true });
+    fs.mkdirSync(path.join(userData, 'logs'), { recursive: true });
+    const logFile = path.join(userData, 'logs', `backend-${new Date().toISOString().slice(0, 10)}.log`);
+    logger = (line) => {
+      try {
+        fs.appendFileSync(logFile,
+          `${new Date().toISOString()} ${line}\n`);
+      } catch (_) { /* logging must never crash the app */ }
+    };
+  } catch (_) {
+    logger = () => {};
+  }
 
   app.whenReady().then(async () => {
     backend = new Backend({
+      userDataDir: userData,
       onEvent: (event) => {
+        logger(`[event] ${JSON.stringify(event).slice(0, 600)}`);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('foxfall:event', event);
         }
       },
       onExit: (code) => {
+        logger(`[backend exit] code=${code}`);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('foxfall:event', {
             event: 'backend_exit', code,
@@ -51,8 +72,12 @@ if (!gotLock) {
     });
     try {
       await backend.start();
+      logger(`[backend ready] mode=${backend.mode}`);
     } catch (err) {
-      dialog.showErrorBox('FOXFall backend error', String(err.message || err));
+      logger(`[backend start FAILED] ${err.message}`);
+      dialog.showErrorBox(
+        'FOXFall backend error',
+        `${err.message}\n\nA diagnostic log was saved to:\n${path.join(userData, 'logs')}`);
     }
     createWindow();
   });

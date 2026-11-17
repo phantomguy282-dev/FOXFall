@@ -7,7 +7,7 @@ import time
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-UP = r"D:\dsh-workflow\projects\FOXFall-repo\desktop\dist\win-unpacked"
+UP = sys.argv[2] if len(sys.argv) > 2 else r"D:\dsh-workflow\projects\FOXFall-repo\desktop\dist\win-unpacked"
 BACKEND = os.path.join(UP, "resources", "backend")
 URL = sys.argv[1] if len(sys.argv) > 1 else \
     "https://www.youtube.com/watch?v=aqz-KE-bpKQ"

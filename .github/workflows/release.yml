@@ -60,6 +60,21 @@ jobs:
           FOXFall_PYTHON: ${{ github.workspace }}\.venv\Scripts\python.exe
         run: node --test tests/ipc.test.cjs
 
+      - name: Build self-contained backend executable (PyInstaller)
+        working-directory: ${{ github.workspace }}
+        run: |
+          .venv\Scripts\python -m pip install pyinstaller
+          .venv\Scripts\python -m PyInstaller backend\foxfall-backend.spec `
+            --noconfirm --distpath backend\dist --workpath "$env:RUNNER_TEMP\foxfall-pyi"
+          if (-not (Test-Path "backend\dist\foxfall-backend\foxfall-backend.exe")) {
+            throw "backend exe missing"
+          }
+          # smoke: the exe must answer a ping over stdio with no Python env
+          $env:PYTHONPATH = ""; $env:PYTHONHOME = ""
+          '{"id":1,"action":"ping","payload":{}}' |
+            & "backend\dist\foxfall-backend\foxfall-backend.exe" 2>$null |
+            Select-String '"pong"'
+
       - name: Build embedded Python runtime
         working-directory: ${{ github.workspace }}
         run: |
@@ -89,22 +104,17 @@ jobs:
           $up = Join-Path (Get-Location) "dist\win-unpacked"
           foreach ($required in @(
             "$up\FOXFall.exe",
-            "$up\resources\backend\server.py",
-            "$up\resources\backend\runtime\python\python.exe",
+            "$up\resources\backend\foxfall-backend\foxfall-backend.exe",
             "$up\resources\bin\ffmpeg\ffmpeg.exe",
-            "$up\resources\core\downloader.py",
-            "$up\resources\utils\ffmpeg.py"
+            "$up\resources\bin\ffmpeg\ffprobe.exe"
           )) {
             if (-not (Test-Path $required)) { throw "missing packaged file: $required" }
           }
-          # backend must boot inside the packaged layout
-          Push-Location "$up\resources\backend"
-          try {
-            $env:PYTHONIOENCODING = "utf-8"
-            '{"id":1,"action":"ping","payload":{}}' |
-              & ".\runtime\python\python.exe" server.py 2>$null |
-              Select-String '"ready"'
-          } finally { Pop-Location }
+          # the standalone backend exe must boot and answer ready in-place
+          $env:PYTHONPATH = ""; $env:PYTHONHOME = ""
+          '{"id":1,"action":"ping","payload":{}}' |
+            & "$up\resources\backend\foxfall-backend\foxfall-backend.exe" 2>$null |
+            Select-String '"ready"|"pong"'
           Write-Host "Packaged layout OK"
 
       - name: Generate SHA-256 checksums

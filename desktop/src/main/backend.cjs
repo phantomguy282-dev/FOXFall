@@ -28,6 +28,7 @@ class Backend {
   constructor(opts) {
     this.onEvent = opts.onEvent || (() => {});
     this.onExit = opts.onExit || (() => {});
+    this.userDataDir = opts.userDataDir || '';
     this.proc = null;
     this._ready = false;
     this.restarting = false;
@@ -51,59 +52,88 @@ class Backend {
     return path.resolve(__dirname, '..', '..', '..');
   }
 
-  pythonExecutable() {
-    // Packaged: bundled runtime under resources/backend/runtime/python/python.exe
-    const packaged = path.join(
-      process.resourcesPath || '', 'backend', 'runtime', 'python', 'python.exe');
-    if (fs.existsSync(packaged)) return packaged;
+  /**
+   * Resolve the backend command.
+   *
+   * Strategy (in order):
+   *  1. Packaged self-contained exe: <resources>/backend/foxfall-backend/
+   *     foxfall-backend.exe (PyInstaller onedir; zero external deps).
+   *  2. Packaged embedded runtime: <resources>/backend/runtime/python/
+   *     python.exe running server.py (legacy layout, also self-contained).
+   *  3. Dev: repo .venv python running server.py from the repo.
+   * Each candidate is verified with fs.existsSync before use.
+   */
+  resolveBackend() {
+    const res = process.resourcesPath;
+    if (res) {
+      const standalone = path.join(
+        res, 'backend', 'foxfall-backend', 'foxfall-backend.exe');
+      if (fs.existsSync(standalone)) {
+        return { exe: standalone, args: [], cwd: path.dirname(standalone),
+                 mode: 'standalone-exe' };
+      }
+      const py = path.join(
+        res, 'backend', 'runtime', 'python', 'python.exe');
+      const script = path.join(res, 'backend', 'server.py');
+      if (fs.existsSync(py) && fs.existsSync(script)) {
+        return { exe: py, args: [script], cwd: path.dirname(script),
+                 mode: 'embedded-runtime' };
+      }
+    }
     // Env override (CI / tests)
     if (process.env.FOXFall_PYTHON && fs.existsSync(process.env.FOXFall_PYTHON)) {
-      return process.env.FOXFall_PYTHON;
+      const devScript = path.join(this.resourcesRoot(), 'backend', 'server.py');
+      if (fs.existsSync(devScript)) {
+        return { exe: process.env.FOXFall_PYTHON, args: [devScript],
+                 cwd: path.dirname(devScript), mode: 'env-override' };
+      }
     }
-    // Dev: repo .venv, then system python
+    // Dev: repo .venv python running server.py from the repo
     const venv = path.join(this.resourcesRoot(), '.venv', 'Scripts', 'python.exe');
-    if (fs.existsSync(venv)) return venv;
-    return 'python';
+    const devScript = path.join(this.resourcesRoot(), 'backend', 'server.py');
+    if (fs.existsSync(venv) && fs.existsSync(devScript)) {
+      return { exe: venv, args: [devScript], cwd: path.dirname(devScript),
+               mode: 'dev-venv' };
+    }
+    return null;
+  }
+
+  pythonExecutable() {
+    const r = this.resolveBackend();
+    return r ? r.exe : 'python';
   }
 
   serverScript() {
-    const packaged = path.join(
-      process.resourcesPath || '', 'backend', 'server.py');
-    if (fs.existsSync(packaged)) return packaged;
-    const dev = path.join(this.resourcesRoot(), 'backend', 'server.py');
-    if (fs.existsSync(dev)) return dev;
-    return packaged;
+    const r = this.resolveBackend();
+    return r ? (r.args[0] || r.exe) : '';
   }
 
   async start() {
     this.shuttingDown = false;
-    const script = this.serverScript();
-    if (!fs.existsSync(script)) {
-      const msg = `backend server script missing (looked at: ${script}). `
-        + 'The installation appears to be incomplete — reinstall FOXFall.';
-      this.onEvent({ event: 'backend_failed', message: msg });
-      throw new Error(msg);
-    }
-    const exe = this.pythonExecutable();
-    if (exe === 'python') {
-      const msg = 'No Python runtime found for the backend. '
+    const resolved = this.resolveBackend();
+    if (!resolved) {
+      const msg = 'FOXFall backend not found in the installation. '
+        + 'Expected resources/backend/foxfall-backend/foxfall-backend.exe '
+        + 'or resources/backend/server.py with a bundled Python runtime. '
         + 'The installation appears incomplete — reinstall FOXFall.';
       this.onEvent({ event: 'backend_failed', message: msg });
       throw new Error(msg);
     }
+    this.mode = resolved.mode;
 
     const spawnOpts = {
-      cwd: path.dirname(script),
+      cwd: resolved.cwd,
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
+      // user data (settings/history/downloads/logs) must live outside the
+      // install dir; the backend honors this env var in all layouts
+      env: {
+        ...process.env,
+        FOXFall_USER_DATA: this.userDataDir || '',
+      },
     };
-    if (process.platform === 'win32') {
-      // never show a console window
-      spawnOpts.windowsHide = true;
-      spawnOpts.detached = false;
-    }
 
-    this.proc = spawn(exe, [script, '--stdio'], spawnOpts);
+    this.proc = spawn(resolved.exe, resolved.args, spawnOpts);
     this._ready = false;
     this.lastStderr = '';
 
@@ -142,7 +172,7 @@ class Backend {
       // Surface the real cause: stderr tail + spawn diagnostics
       const detail = this.lastStderr
         ? `backend startup failed: ${err.message} | stderr: ${this.lastStderr}`
-        : `backend startup failed: ${err.message} (python: ${exe})`;
+        : `backend startup failed: ${err.message} (backend: ${resolved.exe})`;
       this.onEvent({ event: 'backend_failed', message: detail });
       throw new Error(detail);
     }

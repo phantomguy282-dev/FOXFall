@@ -16,15 +16,30 @@ LOG_DIR = os.path.join(_PROJECT_ROOT, "logs")
 _logger: Optional[logging.Logger] = None
 
 
+def _log_dir() -> str:
+    """
+    Log destination. In the packaged desktop app the backend receives
+    FOXFall_USER_DATA and logs go to <appdata>/FOXFall/logs so the install
+    directory stays read-only and diagnostics survive updates.
+    """
+    user_data = os.environ.get("FOXFall_USER_DATA")
+    if user_data:
+        return os.path.join(user_data, "logs")
+    if os.path.basename(_PROJECT_ROOT).lower() == "resources":
+        return os.path.join(os.path.dirname(_PROJECT_ROOT), "logs")
+    return LOG_DIR
+
+
 def get_logger(name: str = "foxfall") -> logging.Logger:
     global _logger
     if _logger is not None:
         return _logger
-    os.makedirs(LOG_DIR, exist_ok=True)
+    log_dir = _log_dir()
+    os.makedirs(log_dir, exist_ok=True)
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
     handler = RotatingFileHandler(
-        os.path.join(LOG_DIR, "foxfall.log"),
+        os.path.join(log_dir, "foxfall.log"),
         maxBytes=512 * 1024,
         backupCount=2,
         encoding="utf-8",

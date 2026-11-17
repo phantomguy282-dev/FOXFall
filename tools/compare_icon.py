@@ -5,7 +5,7 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8")
 from PIL import Image
 
-exe = Image.open(os.path.join(os.environ["TEMP"], "exe-icon3.png")).convert("RGBA")
+exe = Image.open(os.path.join(os.environ["TEMP"], "exe-icon5.png")).convert("RGBA")
 sup = Image.open("desktop-icon.png").convert("RGBA").resize(exe.size)
 
 
