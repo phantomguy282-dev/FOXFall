@@ -1,0 +1,97 @@
+/* ============================================================
+   FOXFall Design Tokens — single source of truth
+   ============================================================ */
+:root {
+  /* ---- brand palette (official) ---- */
+  --fx-orange: #F28C28;
+  --fx-orange-deep: #D96520;
+  --fx-amber: #FFB347;
+  --fx-cream: #FFF1D6;
+  --fx-white: #FFFFFF;
+  --fx-black: #111111;
+  --fx-charcoal: #1B1B1B;
+  --fx-brown: #291A13;
+
+  /* ---- semantic surfaces ---- */
+  --bg-app: #111111;
+  --bg-panel: #1B1B1B;
+  --bg-panel-2: #212121;
+  --bg-elevated: #262221;
+  --bg-hover: rgba(255, 255, 255, .045);
+  --bg-active: rgba(242, 140, 40, .12);
+
+  /* ---- text ---- */
+  --text-primary: #F5EEE4;
+  --text-secondary: #A89A8B;
+  --text-tertiary: #6F6558;
+  --text-on-accent: #16110C;
+
+  /* ---- borders ---- */
+  --border-subtle: rgba(255, 255, 255, .07);
+  --border-default: rgba(255, 255, 255, .11);
+  --border-accent: rgba(242, 140, 40, .38);
+
+  /* ---- states ---- */
+  --ok: #8BCF8B;
+  --warn: #FFB347;
+  --err: #FF6B5E;
+  --info: #7FB8E0;
+
+  /* ---- accent usage (orange is an accent, not a background) ---- */
+  --accent: var(--fx-orange);
+  --accent-soft: rgba(242, 140, 40, .14);
+
+  /* ---- spacing scale ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+
+  /* ---- radius ---- */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+  --r-pill: 999px;
+
+  /* ---- shadows ---- */
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .35);
+  --sh-2: 0 4px 14px rgba(0, 0, 0, .40);
+  --sh-3: 0 12px 34px rgba(0, 0, 0, .50);
+  --sh-accent: 0 6px 20px rgba(242, 140, 40, .22);
+
+  /* ---- typography ---- */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", "Inter", system-ui, sans-serif;
+  --font-num: "Cascadia Code", "Consolas", ui-monospace, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 13.5px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 26px;
+  --fs-3xl: 34px;
+  --lh-tight: 1.25;
+  --lh-normal: 1.55;
+  --fw-regular: 400;
+  --fw-medium: 550;
+  --fw-bold: 700;
+
+  /* ---- motion ---- */
+  --ease: cubic-bezier(.22, .61, .36, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+
+  /* ---- layout ---- */
+  --sidebar-w: 236px;
+  --sidebar-w-compact: 68px;
+  --topbar-h: 56px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
+}

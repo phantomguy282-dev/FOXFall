@@ -5,164 +5,327 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
   <title>FOXFall</title>
+  <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="app">
-    <!-- ============ SIDEBAR ============ -->
-    <aside class="sidebar">
+
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <img src="../../assets/icon.png" alt="FOXFall" class="brand-logo">
         <span class="brand-name">FOX<i>Fall</i></span>
       </div>
-      <nav class="nav">
-        <button class="nav-item active" data-view="home"><span class="ico">⌂</span>Home</button>
-        <button class="nav-item" data-view="queue"><span class="ico">⇣</span>Queue<span class="pill" id="queuePill" hidden>0</span></button>
-        <button class="nav-item" data-view="history"><span class="ico">≡</span>History</button>
-        <button class="nav-item" data-view="settings"><span class="ico">⚙</span>Settings</button>
-        <button class="nav-item" data-view="about"><span class="ico">?;</span>About</button>
+      <nav class="nav" id="nav">
+        <button class="nav-item active" data-view="dashboard">
+          <span class="nav-ic" data-icon="dashboard" data-size="18"></span><span class="nav-t">Dashboard</span>
+        </button>
+        <button class="nav-item" data-view="downloads">
+          <span class="nav-ic" data-icon="download"></span><span class="nav-t">Downloads</span>
+        </button>
+        <button class="nav-item" data-view="queue">
+          <span class="nav-ic" data-icon="queue"></span><span class="nav-t">Queue</span>
+          <span class="pill" id="queuePill" hidden>0</span>
+        </button>
+        <button class="nav-item" data-view="library">
+          <span class="nav-ic" data-icon="library"></span><span class="nav-t">Media Library</span>
+        </button>
+        <button class="nav-item" data-view="tools">
+          <span class="nav-ic" data-icon="tools"></span><span class="nav-t">Media Tools</span>
+        </button>
+        <button class="nav-item" data-view="history">
+          <span class="nav-ic" data-icon="history"></span><span class="nav-t">History</span>
+        </button>
+        <div class="nav-sep"></div>
+        <button class="nav-item" data-view="settings">
+          <span class="nav-ic" data-icon="settings"></span><span class="nav-t">Settings</span>
+        </button>
+        <button class="nav-item" data-view="about">
+          <span class="nav-ic" data-icon="about"></span><span class="nav-t">About</span>
+        </button>
       </nav>
       <div class="sidebar-footer">
         <div class="backend-dot" id="backendDot"></div>
         <span id="backendLabel">Connecting…</span>
+        <span class="sidebar-ver" id="sidebarVer"></span>
       </div>
     </aside>
 
-    <!-- ============ MAIN ============ -->
-    <main class="main">
-      <!-- HOME -->
-      <section class="view" id="view-home">
-        <div class="hero">
-          <img src="../../assets/icon.png" class="hero-fox" alt="">
-          <h1>Your videos. <span class="accent">Your world.</span></h1>
-          <p class="hero-sub">Download your favorite videos with FOXFall.</p>
+    <!-- ================= MAIN ================= -->
+    <div class="main-col">
+      <!-- topbar -->
+      <header class="topbar">
+        <div class="searchbox">
+          <span class="sb-ic" data-icon="search" data-size="15"></span>
+          <input id="globalSearch" type="text" placeholder="Search history and queue…"
+                 spellcheck="false" autocomplete="off">
         </div>
-
-        <div class="url-box">
-          <input id="urlInput" type="text" spellcheck="false" autocomplete="off"
-                 placeholder="Paste a YouTube, Instagram or TikTok URL...">
-          <div class="url-actions">
-            <button class="btn btn-ghost" id="pasteBtn" title="Paste from clipboard">Paste</button>
-            <button class="btn btn-primary" id="analyzeBtn">Analyze</button>
-            <button class="btn btn-ghost" id="clearBtn">Clear</button>
-          </div>
+        <div class="topbar-right">
+          <button class="iconbtn" id="notifBtn" title="Notifications" aria-label="Notifications">
+            <span data-icon="bell" data-size="17"></span>
+            <span class="notif-dot" id="notifDot" hidden></span>
+          </button>
+          <span class="topbar-ver" id="topbarVer"></span>
         </div>
-        <div class="message" id="homeMessage"></div>
+      </header>
 
-        <!-- ANALYSIS CARD -->
-        <div class="card analysis" id="analysisCard" hidden>
-          <img id="thumb" class="thumb" alt="">
-          <div class="analysis-info">
-            <h2 id="videoTitle"></h2>
-            <div class="meta">
-              <span class="chip" id="platformChip"></span>
-              <span id="uploader"></span>
-              <span id="duration"></span>
-              <span id="views"></span>
+      <main class="main" id="main">
+
+        <!-- ============ DASHBOARD ============ -->
+        <section class="view" id="view-dashboard">
+          <div class="view-head">
+            <div>
+              <h1 class="view-title">Dashboard</h1>
+              <p class="view-sub">Your videos. Your world.</p>
             </div>
-            <div class="pickers">
-              <label>Quality
-                <select id="qualitySelect"></select>
-              </label>
-              <label>Format
-                <select id="formatSelect"></select>
-              </label>
-            </div>
-            <div class="analysis-actions">
-              <button class="btn btn-primary" id="downloadBtn">Download</button>
-              <button class="btn btn-ghost" id="openFolderBtn">Open folder</button>
+            <div class="head-actions">
+              <button class="btn btn-primary" id="dashNewBtn">
+                <span data-icon="plus" data-size="15"></span> New download
+              </button>
             </div>
           </div>
-        </div>
-      </section>
 
-      <!-- QUEUE -->
-      <section class="view" id="view-queue" hidden>
-        <h1 class="view-title">Download Queue</h1>
-        <div id="queueList" class="queue-list"></div>
-        <div class="empty" id="queueEmpty">No downloads yet. Paste a URL on the Home tab.</div>
-        <div class="queue-actions">
-          <button class="btn btn-ghost" id="openDownloadsBtn">Open download folder</button>
-          <button class="btn btn-danger" id="clearQueueBtn">Clear finished</button>
-        </div>
-      </section>
+          <div class="stat-row">
+            <div class="stat-card"><div class="stat-num" id="stCompleted">–</div><div class="stat-label">Completed</div></div>
+            <div class="stat-card"><div class="stat-num" id="stActive">–</div><div class="stat-label">Active</div></div>
+            <div class="stat-card"><div class="stat-num" id="stFailed">–</div><div class="stat-label">Failed</div></div>
+            <div class="stat-card"><div class="stat-num" id="stSize">–</div><div class="stat-label">Total size</div></div>
+            <div class="stat-card"><div class="stat-num" id="stSpeed">–</div><div class="stat-label">Current speed</div></div>
+          </div>
 
-      <!-- HISTORY -->
-      <section class="view" id="view-history" hidden>
-        <h1 class="view-title">History</h1>
-        <div class="history-actions">
-          <button class="btn btn-danger" id="clearHistoryBtn">Clear history</button>
-        </div>
-        <div id="historyList" class="history-list"></div>
-        <div class="empty" id="historyEmpty">Nothing downloaded yet.</div>
-      </section>
+          <div class="dash-grid">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Recent activity</h2>
+                <button class="btn btn-ghost btn-sm" id="dashToHistory">View all</button>
+              </div>
+              <div id="dashRecent" class="recent-list"></div>
+              <div class="empty small" id="dashRecentEmpty">No completed downloads yet.</div>
+            </div>
 
-      <!-- SETTINGS -->
-      <section class="view" id="view-settings" hidden>
-        <h1 class="view-title">Settings</h1>
-        <div class="settings-grid">
-          <div class="setting">
-            <label>Download folder</label>
-            <div class="row">
-              <input id="setDownloadDir" type="text" readonly>
-              <button class="btn btn-ghost" id="browseDirBtn">Browse…</button>
+            <div class="panel">
+              <div class="panel-head"><h2>Quick actions</h2></div>
+              <div class="qa-grid">
+                <button class="qa" id="qaNew"><span data-icon="plus" data-size="20"></span>New download</button>
+                <button class="qa" id="qaLibrary"><span data-icon="library" data-size="20"></span>Media library</button>
+                <button class="qa" id="qaTools"><span data-icon="tools" data-size="20"></span>Media tools</button>
+                <button class="qa" id="qaHistory"><span data-icon="history" data-size="20"></span>History</button>
+              </div>
+              <div class="panel-head" style="margin-top:var(--sp-5)"><h2>System status</h2>
+                <button class="btn btn-ghost btn-sm" id="dashDiagBtn">Run diagnostics</button>
+              </div>
+              <div id="dashSystem" class="sys-status"></div>
             </div>
           </div>
-          <div class="setting">
-            <label>Default quality</label>
-            <select id="setQuality">
-              <option value="best">Best available</option>
-              <option value="2160">2160p (4K)</option>
-              <option value="1440">1440p</option>
-              <option value="1080">1080p</option>
-              <option value="720">720p</option>
-              <option value="480">480p</option>
-              <option value="360">360p</option>
-              <option value="mp3">MP3 (audio)</option>
+        </section>
+
+        <!-- ============ DOWNLOADS ============ -->
+        <section class="view" id="view-downloads" hidden>
+          <div class="view-head">
+            <div><h1 class="view-title">Downloads</h1>
+            <p class="view-sub">Analyze a link, pick a quality, download.</p></div>
+          </div>
+
+          <div class="url-box">
+            <input id="urlInput" type="text" spellcheck="false" autocomplete="off"
+                   placeholder="Paste a YouTube, Instagram or TikTok URL...">
+            <div class="url-actions">
+              <button class="btn btn-ghost" id="pasteBtn">Paste</button>
+              <button class="btn btn-primary" id="analyzeBtn">Analyze</button>
+              <button class="btn btn-ghost" id="clearBtn">Clear</button>
+            </div>
+          </div>
+          <div class="message" id="homeMessage"></div>
+
+          <div class="card analysis" id="analysisCard" hidden>
+            <img id="thumb" class="thumb" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+            <div class="analysis-info">
+              <h2 id="videoTitle"></h2>
+              <div class="meta">
+                <span class="chip" id="platformChip"></span>
+                <span id="uploader"></span>
+                <span id="duration"></span>
+                <span id="views"></span>
+              </div>
+              <div class="pickers">
+                <label>Quality
+                  <select id="qualitySelect"></select>
+                </label>
+                <label>Format
+                  <select id="formatSelect"></select>
+                </label>
+              </div>
+              <div class="analysis-actions">
+                <button class="btn btn-primary" id="downloadBtn"><span data-icon="download" data-size="15"></span> Download</button>
+                <button class="btn btn-ghost" id="openFolderBtn"><span data-icon="folder" data-size="15"></span> Open folder</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ QUEUE ============ -->
+        <section class="view" id="view-queue" hidden>
+          <div class="view-head">
+            <div><h1 class="view-title">Queue</h1>
+            <p class="view-sub">Active and finished downloads.</p></div>
+          </div>
+          <div id="queueList" class="queue-list"></div>
+          <div class="empty" id="queueEmpty">Queue is empty. Paste a link on Downloads.</div>
+          <div class="queue-actions">
+            <button class="btn btn-ghost" id="openDownloadsBtn"><span data-icon="folder" data-size="15"></span> Open download folder</button>
+            <button class="btn btn-danger" id="clearQueueBtn"><span data-icon="trash" data-size="15"></span> Clear finished</button>
+          </div>
+        </section>
+
+        <!-- ============ MEDIA LIBRARY ============ -->
+        <section class="view" id="view-library" hidden>
+          <div class="view-head">
+            <div><h1 class="view-title">Media Library</h1>
+            <p class="view-sub">Your indexed local media files.</p></div>
+            <div class="head-actions">
+              <button class="btn btn-ghost" id="libRescanBtn"><span data-icon="refresh" data-size="15"></span> Rescan</button>
+            </div>
+          </div>
+          <div class="lib-toolbar">
+            <input id="libSearch" type="text" placeholder="Search library…" spellcheck="false">
+            <select id="libSort">
+              <option value="date">Newest first</option>
+              <option value="name">Name</option>
+              <option value="size">Size</option>
             </select>
           </div>
-          <div class="setting">
-            <label>Preferred format</label>
-            <select id="setFormat">
-              <option value="mp4">MP4</option>
-              <option value="webm">WEBM</option>
-              <option value="mp3">MP3 (audio only)</option>
+          <div id="libGrid" class="lib-grid"></div>
+          <div class="empty" id="libEmpty">
+            <p><strong>Library indexing is planned for the next milestone.</strong></p>
+            <p>Completed downloads are already saved in your download folder — use History to open them meanwhile.</p>
+          </div>
+        </section>
+
+        <!-- ============ MEDIA TOOLS ============ -->
+        <section class="view" id="view-tools" hidden>
+          <div class="view-head">
+            <div><h1 class="view-title">Media Tools</h1>
+            <p class="view-sub">Inspect and process local media files.</p></div>
+          </div>
+          <div class="tools-grid">
+            <div class="tools-list panel">
+              <button class="tool-item active" data-tool="inspector"><span data-icon="film" data-size="17"></span> File Inspector</button>
+              <button class="tool-item" data-tool="convert" disabled title="Planned for a future milestone"><span data-icon="refresh" data-size="17"></span> Video Converter <span class="tag">planned</span></button>
+              <button class="tool-item" data-tool="audio" disabled title="Planned for a future milestone"><span data-icon="music" data-size="17"></span> Audio Extractor <span class="tag">planned</span></button>
+              <button class="tool-item" data-tool="thumb" disabled title="Planned for a future milestone"><span data-icon="thumb" data-size="17"></span> Thumbnail Generator <span class="tag">planned</span></button>
+            </div>
+            <div class="tool-work panel">
+              <h3>File Inspector</h3>
+              <p class="tool-desc">Select a local media file to inspect its container, codecs, duration and streams using FFprobe.</p>
+              <div class="row">
+                <button class="btn btn-primary" id="toolPickBtn">Choose file…</button>
+                <button class="btn btn-ghost" id="toolPickFromDownloads" disabled
+                        title="Enable once library indexing ships">From downloads…</button>
+              </div>
+              <div id="toolResult" class="diag"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ HISTORY ============ -->
+        <section class="view" id="view-history" hidden>
+          <div class="view-head">
+            <div><h1 class="view-title">History</h1>
+            <p class="view-sub">Everything you have downloaded.</p></div>
+            <div class="head-actions">
+              <button class="btn btn-danger" id="clearHistoryBtn"><span data-icon="trash" data-size="15"></span> Clear history</button>
+            </div>
+          </div>
+          <div class="lib-toolbar">
+            <input id="histSearch" type="text" placeholder="Search history…" spellcheck="false">
+            <select id="histFilter">
+              <option value="">All statuses</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
-          <div class="setting checkbox">
-            <label><input type="checkbox" id="setNotifications"> Show notifications</label>
-          </div>
-          <div class="setting checkbox">
-            <label><input type="checkbox" id="setUpdates"> Check for yt-dlp updates</label>
-          </div>
-        </div>
-        <div class="settings-diagnostics">
-          <h3>System</h3>
-          <div id="diagInfo" class="diag"></div>
-          <button class="btn btn-ghost" id="runDiagBtn">Run full diagnostics</button>
-          <div id="diagResults" class="diag"></div>
-        </div>
-        <div class="save-row">
-          <button class="btn btn-primary" id="saveSettingsBtn">Save settings</button>
-          <span class="save-state" id="saveState"></span>
-        </div>
-      </section>
+          <div id="historyList" class="history-list"></div>
+          <div class="empty" id="historyEmpty">Nothing downloaded yet.</div>
+        </section>
 
-      <!-- ABOUT -->
-      <section class="view" id="view-about" hidden>
-        <div class="about">
-          <img src="../../assets/icon.png" class="about-fox" alt="">
-          <h1>FOX<span class="accent">Fall</span></h1>
-          <p class="tagline">Your videos. Your world.</p>
-          <div id="aboutInfo" class="about-info"></div>
-          <p class="about-note">FOXFall downloads only publicly accessible content you are
-            authorized to download. It never bypasses authentication, CAPTCHA or paywalls.
-            Not affiliated with YouTube, Instagram or TikTok.</p>
-          <p class="about-license">MIT License · <span id="aboutVersion"></span></p>
-        </div>
-      </section>
-    </main>
+        <!-- ============ SETTINGS ============ -->
+        <section class="view" id="view-settings" hidden>
+          <div class="view-head">
+            <div><h1 class="view-title">Settings</h1>
+            <p class="view-sub">Persisted automatically.</p></div>
+          </div>
+          <div class="settings-grid">
+            <div class="setting">
+              <label>Download folder</label>
+              <div class="row">
+                <input id="setDownloadDir" type="text" readonly>
+                <button class="btn btn-ghost" id="browseDirBtn">Browse…</button>
+              </div>
+            </div>
+            <div class="setting">
+              <label>Default quality</label>
+              <select id="setQuality">
+                <option value="best">Best available</option>
+                <option value="2160">2160p (4K)</option>
+                <option value="1440">1440p</option>
+                <option value="1080">1080p</option>
+                <option value="720">720p</option>
+                <option value="480">480p</option>
+                <option value="360">360p</option>
+                <option value="mp3">MP3 (audio)</option>
+              </select>
+            </div>
+            <div class="setting">
+              <label>Preferred format</label>
+              <select id="setFormat">
+                <option value="mp4">MP4</option>
+                <option value="webm">WEBM</option>
+                <option value="mp3">MP3 (audio only)</option>
+              </select>
+            </div>
+            <div class="setting checkbox">
+              <label><input type="checkbox" id="setNotifications"> Show notifications</label>
+            </div>
+            <div class="setting checkbox">
+              <label><input type="checkbox" id="setUpdates"> Check for yt-dlp updates</label>
+            </div>
+          </div>
+          <div class="panel settings-diagnostics">
+            <div class="panel-head"><h2>System</h2>
+              <button class="btn btn-ghost btn-sm" id="runDiagBtn"><span data-icon="activity" data-size="15"></span> Run diagnostics</button>
+            </div>
+            <div id="diagInfo" class="diag"></div>
+            <div id="diagResults" class="diag"></div>
+          </div>
+          <div class="save-row">
+            <button class="btn btn-primary" id="saveSettingsBtn">Save settings</button>
+            <span class="save-state" id="saveState"></span>
+          </div>
+        </section>
+
+        <!-- ============ ABOUT ============ -->
+        <section class="view" id="view-about" hidden>
+          <div class="about">
+            <img src="../../assets/icon.png" class="about-fox" alt="">
+            <h1>FOX<span class="accent">Fall</span></h1>
+            <p class="tagline">Your videos. Your world.</p>
+            <div id="aboutInfo" class="about-info"></div>
+            <p class="about-note">FOXFall downloads only publicly accessible content you are
+              authorized to download. It never bypasses authentication, CAPTCHA or paywalls.
+              Not affiliated with YouTube, Instagram or TikTok.</p>
+            <p class="about-license">MIT License · <span id="aboutVersion"></span></p>
+          </div>
+        </section>
+      </main>
+    </div>
   </div>
+
+  <!-- toast area -->
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="icons.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -142,6 +142,8 @@ const ALLOWED_COMMANDS = new Set([
   'get_settings',
   'set_settings',
   'pick_directory',
+  'pick_media_file',
+  'tool_probe',
   'analyze_url',
   'start_download',
   'cancel_download',
@@ -182,6 +184,18 @@ ipcMain.handle('foxfall:command', async (_event, action, payload) => {
         shell.showItemInFolder(resolved);
       }
       return { ok: true };
+    }
+    if (action === 'pick_media_file') {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        title: 'Choose a media file',
+        filters: [
+          { name: 'Media', extensions: ['mp4', 'webm', 'mkv', 'avi', 'mov',
+            'm4a', 'mp3', 'wav', 'flac', 'aac', 'ogg'] },
+          { name: 'All files', extensions: ['*'] },
+        ],
+      });
+      return { ok: true, path: result.canceled ? null : result.filePaths[0] };
     }
     if (!backend || !backend.ready()) {
       return { ok: false, error: 'backend not running', backendOffline: true };

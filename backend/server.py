@@ -330,6 +330,49 @@ class BackendApp:
             "ffmpeg": diagnostics_text(),
         }
 
+    def tool_probe(self, payload):
+        """Inspect a local media file with FFprobe (real implementation)."""
+        from utils.ffmpeg import ffmpeg_dir
+        import subprocess
+        path = str(payload.get("path", "")).strip()
+        if not path or not os.path.isfile(path):
+            return {"error": "file not found"}
+        fdir = ffmpeg_dir()
+        if not fdir:
+            return {"error": "FFprobe requires FFmpeg, which was not found."}
+        exe = os.path.join(fdir, "ffprobe.exe" if os.name == "nt" else "ffprobe")
+        if not os.path.isfile(exe):
+            return {"error": "ffprobe not found in the FFmpeg directory."}
+        try:
+            out = subprocess.run(
+                [exe, "-v", "quiet", "-print_format", "json",
+                 "-show_format", "-show_streams", path],
+                capture_output=True, text=True, timeout=30)
+            data = json.loads(out.stdout or "{}")
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError) as exc:
+            return {"error": f"ffprobe failed: {exc}"}
+
+        fmt = data.get("format", {})
+        streams = data.get("streams", [])
+        video = next((s for s in streams if s.get("codec_type") == "video"), None)
+        audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+        dur = float(fmt.get("duration") or 0)
+        m, s = divmod(int(dur), 60)
+        h, m2 = divmod(m, 60)
+        size = int(fmt.get("size") or 0)
+        size_mb = size / (1024 * 1024)
+        return {
+            "container": fmt.get("format_name", ""),
+            "duration_text": (f"{h}:{m2:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}") if dur else "",
+            "resolution": (f"{video.get('width')}x{video.get('height')}" if video else ""),
+            "vcodec": (video.get("codec_name") if video else ""),
+            "acodec": (audio.get("codec_name") if audio else ""),
+            "bitrate": (f"{int(fmt.get('bit_rate') or 0) // 1000} kbps"
+                        if fmt.get("bit_rate") else ""),
+            "size_text": f"{size_mb:.1f} MB" if size else "",
+            "streams": len(streams),
+        }
+
 
 def human_error(category: str, raw: str) -> str:
     from utils.network import humanize_error

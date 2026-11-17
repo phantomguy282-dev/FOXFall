@@ -22,11 +22,109 @@ function showView(name) {
   });
   if (name === 'history') loadHistory();
   if (name === 'queue') renderQueue();
+  if (name === 'dashboard') refreshDashboard();
   if (name === 'settings') {
     // Always refresh diagnostics when Settings is opened so the panel
     // reflects the current backend state (never a stale boot-time value).
     loadSystemInfo();
   }
+}
+
+/* ------------------------------------------------------- dashboard data */
+async function refreshDashboard() {
+  // stats from real queue + history
+  const items = [...queueItems.values()].map((i) => i.progress || {});
+  const completed = items.filter((p) => p.status === 'done').length;
+  const active = items.filter((p) =>
+    ['preparing', 'downloading', 'merging'].includes(p.status)).length;
+  const failed = items.filter((p) => p.status === 'error').length;
+  const speed = items
+    .filter((p) => ['downloading', 'merging'].includes(p.status))
+    .reduce((sum, p) => sum + (p.speed || 0), 0);
+  $('stCompleted').textContent = String(completed);
+  $('stActive').textContent = String(active);
+  $('stFailed').textContent = String(failed);
+  $('stSpeed').textContent = speed > 0 ? fmtSpeed(speed) : '—';
+
+  // completed size from real history (backend)
+  const res = await api.invoke('list_history', { limit: 200 });
+  if (res.ok && res.result) {
+    const hist = (res.result.items || []).filter((i) => i.status === 'completed');
+    const totalBytes = hist.reduce((s, i) => s + (i.filesize || 0), 0);
+    $('stSize').textContent = totalBytes > 0 ? fmtSize(totalBytes) : '—';
+    renderRecent(hist.slice(0, 6));
+  } else {
+    $('stSize').textContent = '—';
+    $('dashRecentEmpty').hidden = false;
+    $('dashRecent').innerHTML = '';
+  }
+}
+
+function renderRecent(hist) {
+  const list = $('dashRecent');
+  const empty = $('dashRecentEmpty');
+  list.innerHTML = '';
+  empty.hidden = hist.length > 0;
+  for (const it of hist) {
+    const row = document.createElement('div');
+    row.className = 'recent-row';
+    const title = document.createElement('span');
+    title.className = 'r-title';
+    title.textContent = it.title || '(untitled)';
+    const meta = document.createElement('span');
+    meta.className = 'r-meta';
+    const size = it.filesize ? fmtSize(it.filesize) : '';
+    meta.textContent = `${it.platform || ''} · ${size}`;
+    const actions = document.createElement('div');
+    actions.className = 'r-actions';
+    if (it.filepath) {
+      actions.appendChild(mkIconBtn('open', 'Open file', async () => {
+        await api.invoke('open_path', { path: it.filepath });
+      }));
+      actions.appendChild(mkIconBtn('folder', 'Show in folder', async () => {
+        await api.invoke('reveal_path', { path: it.filepath });
+      }));
+    }
+    row.append(title, meta, actions);
+    list.appendChild(row);
+  }
+}
+
+function mkIconBtn(iconName, title, fn) {
+  const b = document.createElement('button');
+  b.className = 'iconbtn';
+  b.title = title;
+  b.setAttribute('aria-label', title);
+  b.innerHTML = icon(iconName, 15);
+  b.addEventListener('click', fn);
+  return b;
+}
+
+/* ------------------------------------------------------- dashboard system status */
+async function renderDashSystem() {
+  const info = await api.invoke('get_app_info', {});
+  const el = $('dashSystem');
+  if (!info.ok) {
+    el.innerHTML = sysRow('bad', 'Backend', 'unavailable');
+    return;
+  }
+  const i = info.result;
+  const ffOk = !i.ffmpeg.includes('NOT FOUND');
+  const ffOkb = !i.ffmpeg.includes('ffprobe: no');
+  el.innerHTML =
+    sysRow('ok', 'Backend', `v${i.version}`) +
+    sysRow('ok', 'yt-dlp', i.yt_dlp) +
+    sysRow(ffOk ? 'ok' : 'bad', 'FFmpeg', ffOk ? 'v' + ffmpegVer(i.ffmpeg) : 'not found') +
+    sysRow(ffOkb ? 'ok' : 'bad', 'FFprobe', ffOkb ? 'available' : 'not found');
+}
+
+function sysRow(state, name, value) {
+  return `<div class="sys-row"><span class="dot ${state}"></span>${name}<b>${value}</b></div>`;
+}
+
+function ffmpegVer(diagText) {
+  const m = /v([0-9.]+)/.exec(diagText);
+  return m ? m[1] : 'available';
 }
 
 /* ------------------------------------------------------------------ backend status */
@@ -70,16 +168,17 @@ function handleEvent(event) {
       }
       break;
     case 'ready':
-      // Backend just confirmed readiness. Refresh the Settings diagnostics
-      // panel, which may have been rendered before the backend finished
-      // starting ("Backend unavailable" race at first launch).
+      // Backend just confirmed readiness. Refresh diagnostics + dashboard,
+      // which may have been rendered before the backend finished starting.
       loadSystemInfo();
+      renderDashSystem();
       if (typeof loadSettings === 'function') loadSettings();
       break;
     case 'backend_exit':
     case 'backend_failed':
       setMessage('homeMessage', 'Backend connection lost. Restarting…', 'error');
       loadSystemInfo();
+      renderDashSystem();
       break;
     default:
       break;
@@ -95,9 +194,82 @@ function updateQueuePill() {
 }
 
 function notify(title, body) {
-  // In-app toast style message on home view (works without OS permission)
+  // In-app toast notification (top of queue + toast area)
   setMessage('homeMessage', `${title}: ${body || ''}`, 'ok');
+  $('notifDot').hidden = false;
+  const area = $('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<strong></strong><div class="toast-body"></div>`;
+  t.querySelector('strong').textContent = title;
+  t.querySelector('.toast-body').textContent = body || '';
+  area.appendChild(t);
+  setTimeout(() => t.remove(), 6000);
 }
+
+/* global search filters history when on History view; jumps there otherwise */
+$('globalSearch').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  showView('history');
+  const s = $('globalSearch').value;
+  $('histSearch').value = s;
+  loadHistory();
+});
+$('histSearch').addEventListener('input', () => loadHistory());
+$('histFilter').addEventListener('change', () => loadHistory());
+$('notifBtn').addEventListener('click', () => {
+  $('notifDot').hidden = true;
+  showView('queue');
+});
+
+/* dashboard quick actions */
+$('dashNewBtn').addEventListener('click', () => showView('downloads'));
+$('qaNew').addEventListener('click', () => showView('downloads'));
+$('qaLibrary').addEventListener('click', () => showView('library'));
+$('qaTools').addEventListener('click', () => showView('tools'));
+$('qaHistory').addEventListener('click', () => showView('history'));
+$('dashToHistory').addEventListener('click', () => showView('history'));
+$('dashDiagBtn').addEventListener('click', async () => {
+  showView('settings');
+  $('runDiagBtn').click();
+});
+
+/* library rescan: real action (re-lists downloads into grid via history) */
+$('libRescanBtn').addEventListener('click', async () => {
+  $('libRescanBtn').disabled = true;
+  const res = await api.invoke('list_history', { limit: 200 });
+  $('libRescanBtn').disabled = false;
+  const items = res.ok && res.result
+    ? (res.result.items || []).filter((i) => i.status === 'completed' && i.filepath)
+    : [];
+  const grid = $('libGrid');
+  grid.innerHTML = '';
+  $('libEmpty').hidden = items.length > 0;
+  for (const it of items) {
+    const tile = document.createElement('div');
+    tile.className = 'lib-tile';
+    tile.innerHTML = `<div class="lib-name"></div><div class="lib-meta"></div>
+      <div class="lib-actions"></div>`;
+    tile.querySelector('.lib-name').textContent = it.title || '(untitled)';
+    tile.querySelector('.lib-meta').textContent =
+      `${it.platform || ''} · ${fmtSize(it.filesize)}`;
+    const acts = tile.querySelector('.lib-actions');
+    acts.appendChild(mkIconBtn('open', 'Open file', async () => {
+      await api.invoke('open_path', { path: it.filepath });
+    }));
+    acts.appendChild(mkIconBtn('folder', 'Show in folder', async () => {
+      await api.invoke('reveal_path', { path: it.filepath });
+    }));
+    grid.appendChild(tile);
+  }
+});
+$('libSearch').addEventListener('input', () => {
+  // real-time filter over rendered tiles
+  const q = ($('libSearch').value || '').toLowerCase();
+  document.querySelectorAll('.lib-tile').forEach((tile) => {
+    tile.style.display = tile.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
 
 /* ------------------------------------------------------------------ helpers */
 function setMessage(id, text, kind = '') {
@@ -367,8 +539,16 @@ async function loadHistory() {
   const items = res.ok && res.result ? res.result.items : [];
   const list = $('historyList');
   list.innerHTML = '';
-  $('historyEmpty').hidden = items.length > 0;
-  for (const entry of items) {
+  // client-side search + status filter (real data filtering)
+  const q = ($('histSearch').value || '').toLowerCase();
+  const status = $('histFilter').value || '';
+  const filtered = items.filter((it) => {
+    if (status && it.status !== status) return false;
+    if (q && !`${it.title} ${it.platform}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  $('historyEmpty').hidden = filtered.length > 0;
+  for (const entry of filtered) {
     list.appendChild(renderHistoryRow(entry));
   }
 }
@@ -457,16 +637,19 @@ async function loadSystemInfo() {
     return;
   }
   const info = res.result;
-  $('diagInfo').innerHTML =
-    `App version <b>${info.version}</b>\n` +
-    `yt-dlp <b>${info.yt_dlp}</b>\n` +
-    `${info.ffmpeg.replace(/FFmpeg: /, 'FFmpeg ').replace(/ - /, '\n')}`;
+  $('diagInfo').textContent =
+    `App version ${info.version}\n` +
+    `yt-dlp ${info.yt_dlp}\n` +
+    info.ffmpeg.replace(/FFmpeg: /, 'FFmpeg ');
   $('aboutInfo').innerHTML =
     `<div><span>Application</span><b>FOXFall</b></div>` +
     `<div><span>Version</span><b>${info.version}</b></div>` +
     `<div><span>Engine (yt-dlp)</span><b>${info.yt_dlp}</b></div>` +
-    `<div><span>FFmpeg</span><b>${info.ffmpeg.includes('NOT FOUND') ? 'not found' : 'bundled ✓'}</b></div>`;
+    `<div><span>FFmpeg</span><b>${info.ffmpeg.includes('NOT FOUND') ? 'not found' : 'bundled ✓'}</b></div>` +
+    `<div><span>Tagline</span><b>${info.tagline}</b></div>`;
   $('aboutVersion').textContent = `v${info.version}`;
+  $('sidebarVer').textContent = `v${info.version}`;
+  $('topbarVer').textContent = `v${info.version}`;
 }
 
 $('runDiagBtn').addEventListener('click', async () => {
@@ -485,10 +668,55 @@ $('runDiagBtn').addEventListener('click', async () => {
       ? `<span class="ok">${l}</span>` : `<span class="bad">${l}</span>`).join('\n');
 });
 
+/* ------------------------------------------------------- media tools */
+let activeTool = 'inspector';
+document.querySelectorAll('.tool-item').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    document.querySelectorAll('.tool-item').forEach((b) =>
+      b.classList.toggle('active', b === btn));
+    activeTool = btn.dataset.tool;
+    if (activeTool === 'inspector') $('toolResult').textContent = '';
+  });
+});
+
+$('toolPickBtn').addEventListener('click', async () => {
+  const res = await api.invoke('pick_media_file', {});
+  if (!res.ok || !res.path) return;
+  $('toolResult').textContent = 'Inspecting…';
+  const probe = await api.invoke('tool_probe', { path: res.path });
+  if (!probe.ok) {
+    $('toolResult').textContent = probe.error || 'Inspection failed';
+    return;
+  }
+  if (probe.result.error) {
+    $('toolResult').textContent = probe.result.error;
+    return;
+  }
+  renderProbe(probe.result);
+});
+
+function renderProbe(info) {
+  const rows = [
+    ['Container', info.container],
+    ['Duration', info.duration_text],
+    ['Resolution', info.resolution],
+    ['Video codec', info.vcodec],
+    ['Audio codec', info.acodec],
+    ['Bitrate', info.bitrate],
+    ['File size', info.size_text],
+    ['Streams', String(info.streams)],
+  ].filter(([, v]) => v);
+  $('toolResult').innerHTML = rows
+    .map(([k, v]) => `${k}: <b>${v}</b>`).join('\n');
+}
+
 /* ------------------------------------------------------------------ boot */
 (async function boot() {
+  hydrateIcons();
   await loadSettings();
   await loadSystemInfo();
+  renderDashSystem();
   // Restore any queued downloads from a previous session of this run.
   const res = await api.invoke('list_queue', {});
   if (res.ok && Array.isArray(res.result.items)) {
@@ -496,4 +724,5 @@ $('runDiagBtn').addEventListener('click', async () => {
     renderQueue();
     updateQueuePill();
   }
+  refreshDashboard();
 })();
