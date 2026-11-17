@@ -184,9 +184,16 @@ ipcMain.handle('foxfall:command', async (_event, action, payload) => {
       return { ok: true };
     }
     if (!backend || !backend.ready()) {
-      return { ok: false, error: 'backend not running' };
+      return { ok: false, error: 'backend not running', backendOffline: true };
     }
-    return await backend.request(action, payload);
+    try {
+      const result = await backend.request(action, payload);
+      // backend.request() already unwraps the {ok, result} envelope and
+      // rejects on error — normalize to the renderer contract {ok, ...}.
+      return { ok: true, result };
+    } catch (err) {
+      return { ok: false, error: String(err.message || err) };
+    }
   } catch (err) {
     return { ok: false, error: String(err.message || err) };
   }

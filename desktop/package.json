@@ -1,6 +1,6 @@
 {
   "name": "foxfall",
-  "version": "2.3.0",
+  "version": "2.4.1",
   "description": "FOXFall — Your videos. Your world.",
   "author": "FOXFall Project",
   "license": "MIT",
@@ -15,7 +15,8 @@
   "devDependencies": {
     "electron": "^45.3.2",
     "electron-builder": "25.1.8",
-    "rcedit": "^5.0.2"
+    "rcedit": "^5.0.2",
+    "ws": "^8.23.0"
   },
   "build": {
     "appId": "dev.phantomguy.foxfall",

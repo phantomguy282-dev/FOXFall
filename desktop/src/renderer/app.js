@@ -22,6 +22,11 @@ function showView(name) {
   });
   if (name === 'history') loadHistory();
   if (name === 'queue') renderQueue();
+  if (name === 'settings') {
+    // Always refresh diagnostics when Settings is opened so the panel
+    // reflects the current backend state (never a stale boot-time value).
+    loadSystemInfo();
+  }
 }
 
 /* ------------------------------------------------------------------ backend status */
@@ -64,9 +69,17 @@ function handleEvent(event) {
         updateQueuePill();
       }
       break;
+    case 'ready':
+      // Backend just confirmed readiness. Refresh the Settings diagnostics
+      // panel, which may have been rendered before the backend finished
+      // starting ("Backend unavailable" race at first launch).
+      loadSystemInfo();
+      if (typeof loadSettings === 'function') loadSettings();
+      break;
     case 'backend_exit':
     case 'backend_failed':
       setMessage('homeMessage', 'Backend connection lost. Restarting…', 'error');
+      loadSystemInfo();
       break;
     default:
       break;
