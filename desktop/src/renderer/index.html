@@ -194,11 +194,16 @@
               <option value="name">Name</option>
               <option value="size">Size</option>
             </select>
+            <button class="btn btn-ghost" id="libFavOnly"><span data-icon="about" data-size="15"></span> Favorites</button>
+          </div>
+          <div class="scan-progress" id="libScanProgress" hidden>
+            <div class="progress-track"><div class="progress-fill" id="libScanFill"></div></div>
+            <div class="scan-status" id="libScanStatus">Indexing…</div>
           </div>
           <div id="libGrid" class="lib-grid"></div>
           <div class="empty" id="libEmpty">
-            <p><strong>Library indexing is planned for the next milestone.</strong></p>
-            <p>Completed downloads are already saved in your download folder — use History to open them meanwhile.</p>
+            <p><strong>No media indexed yet.</strong></p>
+            <p>Click Rescan to index your download folder — real metadata and thumbnails are extracted with FFprobe/FFmpeg and cached.</p>
           </div>
         </section>
 
@@ -211,19 +216,77 @@
           <div class="tools-grid">
             <div class="tools-list panel">
               <button class="tool-item active" data-tool="inspector"><span data-icon="film" data-size="17"></span> File Inspector</button>
-              <button class="tool-item" data-tool="convert" disabled title="Planned for a future milestone"><span data-icon="refresh" data-size="17"></span> Video Converter <span class="tag">planned</span></button>
-              <button class="tool-item" data-tool="audio" disabled title="Planned for a future milestone"><span data-icon="music" data-size="17"></span> Audio Extractor <span class="tag">planned</span></button>
-              <button class="tool-item" data-tool="thumb" disabled title="Planned for a future milestone"><span data-icon="thumb" data-size="17"></span> Thumbnail Generator <span class="tag">planned</span></button>
+              <button class="tool-item" data-tool="convert"><span data-icon="refresh" data-size="17"></span> Video Converter</button>
+              <button class="tool-item" data-tool="audio"><span data-icon="music" data-size="17"></span> Audio Extractor</button>
+              <button class="tool-item" data-tool="thumb"><span data-icon="thumb" data-size="17"></span> Thumbnail Generator</button>
             </div>
             <div class="tool-work panel">
-              <h3>File Inspector</h3>
-              <p class="tool-desc">Select a local media file to inspect its container, codecs, duration and streams using FFprobe.</p>
-              <div class="row">
-                <button class="btn btn-primary" id="toolPickBtn">Choose file…</button>
-                <button class="btn btn-ghost" id="toolPickFromDownloads" disabled
-                        title="Enable once library indexing ships">From downloads…</button>
+              <h3 id="toolTitle">File Inspector</h3>
+
+              <div id="toolInspector">
+                <p class="tool-desc">Select a local media file to inspect its container, codecs, duration and streams using FFprobe.</p>
+                <div class="row">
+                  <button class="btn btn-primary" id="toolPickBtn">Choose file…</button>
+                </div>
+                <div id="toolResult" class="diag"></div>
               </div>
-              <div id="toolResult" class="diag"></div>
+
+              <div id="toolConvert" hidden>
+                <p class="tool-desc">Convert a video to MP4 (H.264 + AAC) using FFmpeg.</p>
+                <div class="row"><button class="btn btn-ghost" id="convPickInput">Choose input video…</button></div>
+                <div class="row"><input id="convInput" type="text" readonly placeholder="input file"></div>
+                <div class="row"><button class="btn btn-ghost" id="convPickOutput">Choose output destination…</button></div>
+                <div class="row"><input id="convOutput" type="text" readonly placeholder="output folder"></div>
+                <div class="row">
+                  <button class="btn btn-primary" id="convStart"><span data-icon="play" data-size="15"></span> Start conversion</button>
+                  <button class="btn btn-danger" id="convCancel" hidden>Cancel</button>
+                </div>
+                <div class="progress-track" hidden id="convTrack"><div class="progress-fill" id="convFill"></div></div>
+                <div id="convStatus" class="diag"></div>
+              </div>
+
+              <div id="toolAudio" hidden>
+                <p class="tool-desc">Extract the audio track from a video file.</p>
+                <div class="row"><button class="btn btn-ghost" id="audPickInput">Choose input video…</button></div>
+                <div class="row"><input id="audInput" type="text" readonly placeholder="input file"></div>
+                <div class="row">
+                  <label class="inline-label">Format
+                    <select id="audFormat">
+                      <option value="mp3">MP3</option>
+                      <option value="aac">AAC</option>
+                      <option value="flac">FLAC</option>
+                      <option value="wav">WAV</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="row"><button class="btn btn-ghost" id="audPickOutput">Choose output destination…</button></div>
+                <div class="row"><input id="audOutput" type="text" readonly placeholder="output folder"></div>
+                <div class="row">
+                  <button class="btn btn-primary" id="audStart"><span data-icon="play" data-size="15"></span> Extract audio</button>
+                  <button class="btn btn-danger" id="audCancel" hidden>Cancel</button>
+                </div>
+                <div class="progress-track" hidden id="audTrack"><div class="progress-fill" id="audFill"></div></div>
+                <div id="audStatus" class="diag"></div>
+              </div>
+
+              <div id="toolThumb" hidden>
+                <p class="tool-desc">Generate an image from any moment of a video.</p>
+                <div class="row"><button class="btn btn-ghost" id="thPickInput">Choose video…</button></div>
+                <div class="row"><input id="thInput" type="text" readonly placeholder="input file"></div>
+                <div class="row">
+                  <label class="inline-label">Timestamp (seconds)
+                    <input id="thTimestamp" type="text" value="1">
+                  </label>
+                  <label class="inline-label">Format
+                    <select id="thFormat"><option value="png">PNG</option><option value="jpg">JPG</option></select>
+                  </label>
+                </div>
+                <div class="row"><button class="btn btn-ghost" id="thPickOutput">Choose output destination…</button></div>
+                <div class="row"><input id="thOutput" type="text" readonly placeholder="output folder"></div>
+                <div class="row"><button class="btn btn-primary" id="thStart"><span data-icon="play" data-size="15"></span> Generate</button></div>
+                <div id="thStatus" class="diag"></div>
+                <div id="thPreview" class="thumb-preview"></div>
+              </div>
             </div>
           </div>
         </section>

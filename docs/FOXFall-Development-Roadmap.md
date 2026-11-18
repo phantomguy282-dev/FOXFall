@@ -8,8 +8,8 @@ Dependencies are noted; a milestone may not start before its dependencies are co
 | M2 | Design foundation: tokens, icons, shell, screen redesign | M1 | ✅ this release — tokens `desktop/src/renderer/tokens.css`, icons `icons.js`, shell redesign |
 | M3 | Core stability: backend/IPC/packaging/download verification | — | ✅ complete (v2.3.0–2.4.1) |
 | M4 | Desktop experience: Dashboard, Downloads, Queue, Preview, Quality, History, Settings | M2 | ✅ this release (Dashboard/Downloads/Queue/History/Settings/Diagnostics) |
-| M5 | Media Library: indexing, thumbnails, search, filters, favorites | M2, M4 | ⏳ planned — requires backend actions `library_scan`, `library_thumb` (ffprobe/ffmpeg) |
-| M6 | Media Tools: converter, audio extractor, metadata viewer, inspector, batch | M2, M4, M5 | ⏳ planned — requires backend actions `tool_convert`, `tool_extract_audio`, `tool_probe` |
+| M5 | Media Library: indexing, thumbnails, search, filters, favorites | M2, M4 | ✅ implemented — `core/mediadb.py` (ffprobe metadata, ffmpeg thumbnail cache, incremental/resumable scan, dedupe, missing-file flags, favorites) + backend actions `library_*` + renderer grid |
+| M6 | Media Tools: converter, audio extractor, metadata viewer, inspector, batch | M2, M4, M5 | ✅ implemented — Video Converter, Audio Extractor (mp3/aac/flac/wav), Thumbnail Generator, File Inspector; real ffmpeg with `-progress pipe:1`, cancellation, output verification |
 | M7 | Android foundation: feasibility spike, mobile design system, shell | M2 | ⏳ not started |
 | M8 | Android APK: download engine, notifications, library, signing | M7 | ⏳ not started |
 | M9 | Advanced: clipboard detection, profiles, batch import, playlists, scheduler | M5 | ⏳ not started |

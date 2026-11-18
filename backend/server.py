@@ -19,6 +19,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import uuid
@@ -41,6 +42,7 @@ from core import history as history_mod          # noqa: E402
 from core import settings as settings_mod        # noqa: E402
 from core.download_manager import DownloadManager  # noqa: E402
 from core.downloader import Downloader, ETA_UNKNOWN  # noqa: E402
+from core.mediadb import MediaLibrary            # noqa: E402
 from core.url_detector import detect_platform    # noqa: E402
 from core.url_normalizer import normalize_full   # noqa: E402
 from core.video_info import fetch_info, VideoInfo  # noqa: E402
@@ -87,6 +89,9 @@ class BackendApp:
         self._last_queue_signature = ""
         self._analysis_cache: Dict[str, "VideoInfo"] = {}
         self._analysis_ts: Dict[str, float] = {}
+        self._user_data: str = os.environ.get("FOXFall_USER_DATA", '')
+        self._tool_procs: Dict[str, subprocess.Popen] = {}
+        self._tool_outputs: Dict[str, str] = {}
 
     # ------------------------------------------------------------- events
     def _broadcast_queue(self) -> None:
@@ -329,6 +334,204 @@ class BackendApp:
             "app": __version__,
             "ffmpeg": diagnostics_text(),
         }
+
+    # ------------------------------------------------------------- library
+    def _library(self) -> MediaLibrary:
+        return MediaLibrary(user_data=self._user_data,
+                            ffmpeg_dir=ffmpeg_dir() or "")
+
+    def library_scan(self, payload):
+        """Incremental background scan; emits library_progress events."""
+        lib = self._library()
+
+        def progress(scanned, total, path):
+            emit({"event": "library_progress", "scanned": scanned,
+                  "total": total, "path": path})
+
+        def on_entry(entry):
+            emit({"event": "library_entry", "entry": entry})
+
+        def worker():
+            try:
+                result = lib.scan(extra_dirs=payload.get("extra_dirs"),
+                                  progress=progress, on_entry=on_entry)
+                emit({"event": "library_scan_done", "result": result})
+            except Exception as exc:  # noqa: BLE001
+                emit({"event": "library_scan_done",
+                      "result": {"error": str(exc)}})
+
+        threading.Thread(target=worker, daemon=True,
+                         name="foxfall-library-scan").start()
+        return {"started": True}
+
+    def library_cancel_scan(self, payload):
+        self._library().cancel_scan()
+        return {"cancelling": True}
+
+    def library_list(self, payload):
+        lib = self._library()
+        entries = lib.list_entries(
+            query=str(payload.get("query", "")),
+            sort=str(payload.get("sort", "date")),
+            include_missing=bool(payload.get("include_missing")))
+        return {"items": entries,
+                "count": len(entries),
+                "last_scan": lib.load().get("last_scan")}
+
+    def library_set_favorite(self, payload):
+        return {"updated": self._library().set_favorite(
+            str(payload.get("path", "")), bool(payload.get("favorite")))}
+
+    def library_remove(self, payload):
+        return {"removed": self._library().remove_entry(
+            str(payload.get("path", "")))}
+
+    def library_count(self, payload):
+        return {"count": self._library().entry_count()}
+
+    # ------------------------------------------------------------- tools
+    def _tool_ffmpeg(self) -> Optional[str]:
+        fdir = ffmpeg_dir()
+        if not fdir:
+            return None
+        exe = os.path.join(fdir, "ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+        return exe if os.path.isfile(exe) else None
+
+    def tool_convert_start(self, payload):
+        exe = self._tool_ffmpeg()
+        if not exe:
+            return {"error": "FFmpeg not available."}
+        src = str(payload.get("input", ""))
+        out = str(payload.get("output", ""))
+        vcodec = str(payload.get("vcodec", "libx264"))
+        if not os.path.isfile(src):
+            return {"error": "input file not found"}
+        if not out:
+            return {"error": "output path required"}
+        if os.path.abspath(src) == os.path.abspath(out):
+            return {"error": "output must differ from input"}
+        op_id = uuid.uuid4().hex[:12]
+        self._run_tool(op_id, [exe, "-y", "-i", src,
+                               "-c:v", vcodec, "-c:a", "aac", out],
+                       out, "Converting")
+        return {"operation_id": op_id}
+
+    def tool_extract_start(self, payload):
+        exe = self._tool_ffmpeg()
+        if not exe:
+            return {"error": "FFmpeg not available."}
+        src = str(payload.get("input", ""))
+        out = str(payload.get("output", ""))
+        fmt = str(payload.get("format", "mp3")).lower()
+        codecs = {"mp3": "libmp3lame", "aac": "aac", "flac": "flac",
+                  "wav": "pcm_s16le", "ogg": "libvorbis"}
+        if fmt not in codecs:
+            return {"error": f"unsupported audio format: {fmt}"}
+        if not os.path.isfile(src):
+            return {"error": "input file not found"}
+        if not out:
+            return {"error": "output path required"}
+        op_id = uuid.uuid4().hex[:12]
+        self._run_tool(op_id, [exe, "-y", "-i", src, "-vn",
+                               "-c:a", codecs[fmt], out],
+                       out, "Extracting audio")
+        return {"operation_id": op_id}
+
+    def tool_thumbnail(self, payload):
+        exe = self._tool_ffmpeg()
+        if not exe:
+            return {"error": "FFmpeg not available."}
+        src = str(payload.get("input", ""))
+        out = str(payload.get("output", ""))
+        ts = payload.get("timestamp", 1)
+        try:
+            ts = max(0.0, min(float(ts), 36000.0))
+        except (TypeError, ValueError):
+            return {"error": "invalid timestamp"}
+        if not os.path.isfile(src):
+            return {"error": "input file not found"}
+        if not out:
+            return {"error": "output path required"}
+        try:
+            subprocess.run([exe, "-v", "quiet", "-ss", str(ts), "-i", src,
+                            "-frames:v", "1", "-y", out],
+                           capture_output=True, timeout=60)
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            return {"error": f"ffmpeg failed: {exc}"}
+        if not os.path.isfile(out) or os.path.getsize(out) == 0:
+            return {"error": "thumbnail was not generated (invalid file or timestamp?)"}
+        return {"output": out, "size": os.path.getsize(out)}
+
+    def tool_cancel(self, payload):
+        op_id = str(payload.get("operation_id", ""))
+        proc = self._tool_procs.get(op_id)
+        if proc and proc.poll() is None:
+            proc.kill()
+            # remove the partial output, never the input
+            out = self._tool_outputs.get(op_id, "")
+            if out and os.path.isfile(out):
+                try:
+                    os.remove(out)
+                except OSError:
+                    pass
+            return {"cancelled": True}
+        return {"error": "unknown or already finished operation"}
+
+    def _run_tool(self, op_id: str, args: List[str], output: str, label: str):
+        """
+        Run an FFmpeg tool operation.
+
+        Fixes applied:
+          * stderr is drained in a thread — a full pipe buffer previously
+            blocked ffmpeg forever on long conversions.
+          * `-progress pipe:1 -nostats` added so real progress data flows on
+            stdout, which the monitor parses into tool_progress events.
+        """
+        if "-progress" not in args and args[0].lower().find("ffmpeg") != -1:
+            args = args[:1] + ["-progress", "pipe:1", "-nostats"] + args[1:]
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+        self._tool_procs[op_id] = proc
+        self._tool_outputs[op_id] = output
+
+        # drain stderr so a full pipe can never deadlock ffmpeg
+        def drain_stderr():
+            for _ in proc.stderr:
+                pass
+
+        threading.Thread(target=drain_stderr, daemon=True,
+                         name=f"foxfall-stderr-{op_id}").start()
+
+        def monitor():
+            total = None
+            for line in proc.stdout:
+                line = line.strip()
+                m = re.search(r"Duration: (\d+):(\d+):(\d+\.\d+)", line)
+                if m:
+                    total = (int(m.group(1)) * 3600 + int(m.group(2)) * 60
+                             + float(m.group(3)))
+                if line.startswith("out_time_ms=") and total:
+                    try:
+                        done = int(line.split("=", 1)[1]) / 1_000_000
+                        emit({"event": "tool_progress", "operation_id": op_id,
+                              "percentage": min(100.0, done / total * 100),
+                              "label": label})
+                    except (ValueError, ZeroDivisionError):
+                        pass
+            code = proc.wait()
+            ok = code == 0 and os.path.isfile(output) and \
+                os.path.getsize(output) > 0
+            if not ok and os.path.isfile(output) and os.path.getsize(output) == 0:
+                try:
+                    os.remove(output)
+                except OSError:
+                    pass
+            emit({"event": "tool_finished", "operation_id": op_id,
+                  "ok": ok, "output": output if ok else "",
+                  "error": "" if ok else f"{label} failed (ffmpeg exit {code})"})
+
+        threading.Thread(target=monitor, daemon=True,
+                         name=f"foxfall-tool-{op_id}").start()
 
     def tool_probe(self, payload):
         """Inspect a local media file with FFprobe (real implementation)."""

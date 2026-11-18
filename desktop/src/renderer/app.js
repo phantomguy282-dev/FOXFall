@@ -150,8 +150,35 @@ function handleEvent(event) {
     case 'download_finished':
       updateQueueItem(event.download_id, event.progress);
       if (event.progress && event.progress.status === 'done') {
-        notify('Download completed', event.progress.filename);
+        toast('Download completed', event.progress.filename);
+        $('notifDot').hidden = false;
       }
+      // Dashboard must reflect persistent history, not only this session.
+      refreshDashboard();
+      break;
+    case 'library_progress': {
+      const bar = $('libScanProgress');
+      if (bar) {
+        bar.hidden = false;
+        const pct = event.total ? (event.scanned / event.total * 100) : 0;
+        $('libScanFill').style.width = `${pct}%`;
+        $('libScanStatus').textContent =
+          `Indexing ${event.scanned}/${event.total} — ${event.path.split(/[\\/]/).pop()}`;
+      }
+      break;
+    }
+    case 'library_entry':
+      renderLibTile(event.entry);
+      $('libEmpty').hidden = true;
+      break;
+    case 'library_scan_done':
+      finishLibraryScan(event.result || {});
+      break;
+    case 'tool_progress':
+      updateToolProgress(event.operation_id, event.percentage);
+      break;
+    case 'tool_finished':
+      finishTool(event);
       break;
     case 'queue_status':
       if (Array.isArray(event.items)) {
@@ -193,16 +220,17 @@ function updateQueuePill() {
   pill.textContent = String(active);
 }
 
-function notify(title, body) {
-  // In-app toast notification (top of queue + toast area)
-  setMessage('homeMessage', `${title}: ${body || ''}`, 'ok');
-  $('notifDot').hidden = false;
-  const area = $('toasts');
+function toast(title, body) {
+  $("notifDot").hidden = false;
+  const area = $("toasts");
+  if (!area) return;
   const t = document.createElement('div');
   t.className = 'toast';
-  t.innerHTML = `<strong></strong><div class="toast-body"></div>`;
-  t.querySelector('strong').textContent = title;
-  t.querySelector('.toast-body').textContent = body || '';
+  const strong = document.createElement('strong');
+  strong.textContent = title;
+  const bodyEl = document.createElement('div');
+  bodyEl.textContent = body || '';
+  t.append(strong, bodyEl);
   area.appendChild(t);
   setTimeout(() => t.remove(), 6000);
 }
@@ -234,41 +262,112 @@ $('dashDiagBtn').addEventListener('click', async () => {
   $('runDiagBtn').click();
 });
 
-/* library rescan: real action (re-lists downloads into grid via history) */
-$('libRescanBtn').addEventListener('click', async () => {
-  $('libRescanBtn').disabled = true;
-  const res = await api.invoke('list_history', { limit: 200 });
-  $('libRescanBtn').disabled = false;
-  const items = res.ok && res.result
-    ? (res.result.items || []).filter((i) => i.status === 'completed' && i.filepath)
-    : [];
+/* ---------- Media Library: real index via backend (ffprobe+ffmpeg) ---------- */
+let libFavoritesOnly = false;
+
+async function loadLibrary() {
+  const res = await api.invoke('library_list', {
+    query: $('libSearch').value || '',
+    sort: $('libSort').value || 'date',
+  });
   const grid = $('libGrid');
   grid.innerHTML = '';
-  $('libEmpty').hidden = items.length > 0;
-  for (const it of items) {
-    const tile = document.createElement('div');
-    tile.className = 'lib-tile';
-    tile.innerHTML = `<div class="lib-name"></div><div class="lib-meta"></div>
-      <div class="lib-actions"></div>`;
-    tile.querySelector('.lib-name').textContent = it.title || '(untitled)';
-    tile.querySelector('.lib-meta').textContent =
-      `${it.platform || ''} · ${fmtSize(it.filesize)}`;
-    const acts = tile.querySelector('.lib-actions');
+  const items = res.ok && res.result ? res.result.items : [];
+  const shown = libFavoritesOnly ? items.filter((i) => i.favorite) : items;
+  $('libEmpty').hidden = shown.length > 0;
+  for (const entry of shown) renderLibTile(entry);
+}
+
+function renderLibTile(entry) {
+  const grid = $('libGrid');
+  if (document.querySelector(`.lib-tile[data-path="${CSS.escape(entry.path)}"]`)) {
+    return; // no duplicate tiles on rescan
+  }
+  const tile = document.createElement('div');
+  tile.className = 'lib-tile';
+  tile.dataset.path = entry.path;
+  if (entry.missing) tile.classList.add('missing');
+
+  const img = document.createElement('img');
+  img.className = 'lib-thumb';
+  img.loading = 'lazy';
+  img.alt = entry.title || '';
+  img.src = entry.thumb ||
+    'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+  const info = document.createElement('div');
+  info.className = 'lib-info';
+  const name = document.createElement('div');
+  name.className = 'lib-name';
+  name.textContent = entry.title || '(untitled)';
+  const meta = document.createElement('div');
+  meta.className = 'lib-meta';
+  const bits = [];
+  if (entry.missing) bits.push('file missing');
+  if (entry.duration_text) bits.push(entry.duration_text);
+  if (entry.resolution) bits.push(entry.resolution);
+  if (entry.size) bits.push(fmtSize(entry.size));
+  meta.textContent = bits.join(' Â· ');
+  info.append(name, meta);
+
+  const acts = document.createElement('div');
+  acts.className = 'lib-actions';
+  acts.appendChild(mkIconBtn(entry.favorite ? 'check' : 'about',
+    entry.favorite ? 'Unfavorite' : 'Favorite', async () => {
+      await api.invoke('library_set_favorite',
+        { path: entry.path, favorite: !entry.favorite });
+      loadLibrary();
+    }));
+  if (!entry.missing) {
     acts.appendChild(mkIconBtn('open', 'Open file', async () => {
-      await api.invoke('open_path', { path: it.filepath });
+      await api.invoke('open_path', { path: entry.path });
     }));
     acts.appendChild(mkIconBtn('folder', 'Show in folder', async () => {
-      await api.invoke('reveal_path', { path: it.filepath });
+      await api.invoke('reveal_path', { path: entry.path });
     }));
-    grid.appendChild(tile);
+  }
+  acts.appendChild(mkIconBtn('trash', 'Remove from library', async () => {
+    await api.invoke('library_remove', { path: entry.path });
+    tile.remove();
+    loadLibrary();
+  }));
+
+  tile.append(img, info, acts);
+  grid.appendChild(tile);
+}
+
+$('libRescanBtn').addEventListener('click', async () => {
+  $('libRescanBtn').disabled = true;
+  $('libScanProgress').hidden = false;
+  $('libScanFill').style.width = '0%';
+  $('libScanStatus').textContent = 'Indexingâ€¦';
+  $('libGrid').innerHTML = '';
+  const res = await api.invoke('library_scan', {});
+  if (!res.ok || res.result.error) {
+    $('libScanStatus').textContent = res.result?.error || res.error || 'Scan failed';
+    $('libScanStatus').classList.add('bad');
+    $('libRescanBtn').disabled = false;
   }
 });
-$('libSearch').addEventListener('input', () => {
-  // real-time filter over rendered tiles
-  const q = ($('libSearch').value || '').toLowerCase();
-  document.querySelectorAll('.lib-tile').forEach((tile) => {
-    tile.style.display = tile.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
+
+function finishLibraryScan(result) {
+  $('libScanProgress').hidden = true;
+  $('libRescanBtn').disabled = false;
+  if (result.error) {
+    $('libScanStatus').textContent = result.error;
+    return;
+  }
+  toast(`Library indexed: ${result.indexed} files`,
+        result.cancelled ? 'Scan cancelled â€” resumable' : '');
+  loadLibrary();
+}
+
+$('libSearch').addEventListener('input', () => loadLibrary());
+$('libSort').addEventListener('change', () => loadLibrary());
+$('libFavOnly').addEventListener('click', () => {
+  libFavoritesOnly = !libFavoritesOnly;
+  $('libFavOnly').classList.toggle('btn-primary', libFavoritesOnly);
+  loadLibrary();
 });
 
 /* ------------------------------------------------------------------ helpers */

@@ -345,3 +345,38 @@ select:focus, input[type="text"]:focus { border-color: var(--accent); }
   .tools-grid { grid-template-columns: 1fr; }
   .stat-row { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 }
+/* ================= media library ================= */
+.scan-progress { margin-bottom: var(--sp-3); }
+.scan-status { font-size: var(--fs-sm); color: var(--text-secondary); margin-top: var(--sp-1);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scan-status.bad { color: var(--err); }
+
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--sp-3); }
+.lib-tile {
+  display: flex; flex-direction: column;
+  background: var(--bg-panel); border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg); overflow: hidden;
+  transition: border-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.lib-tile:hover { border-color: var(--border-accent); transform: translateY(-1px); }
+.lib-tile.missing { opacity: .55; border-style: dashed; }
+.lib-thumb {
+  width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block;
+  background: var(--bg-app);
+}
+.lib-info { padding: var(--sp-2) var(--sp-3) 0; min-width: 0; }
+.lib-name { font-size: var(--fs-md); font-weight: var(--fw-medium); color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-meta { font-size: var(--fs-xs); color: var(--text-tertiary); margin-top: 2px;
+  font-family: var(--font-num); }
+.lib-actions { display: flex; gap: 2px; padding: var(--sp-1) var(--sp-2) var(--sp-2); margin-top: auto; }
+.lib-actions .iconbtn { width: 28px; height: 28px; }
+
+/* ================= tools ================= */
+.tool-work input[type="text"] { width: 100%; }
+.inline-label { display: flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-sm); color: var(--text-tertiary); }
+.inline-label input[type="text"] { width: 90px; }
+.inline-label select { min-width: 90px; }
+.thumb-preview img { max-width: 100%; border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle); margin-top: var(--sp-3); }
