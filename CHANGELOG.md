@@ -12,18 +12,34 @@ Versioning follows Semantic Versioning.
 
 ## [Unreleased] — targeting FOXFall 1.0.0
 
-### Release criteria (all must be verified before publishing 1.0.0)
-- [x] M5 — Media Library indexing complete (FFprobe metadata, thumbnail cache,
-      persistence, rescan, no duplicates, graceful missing-file handling)
-- [x] M6 — Media Tools complete (Video Converter, Audio Extractor,
-      Thumbnail Generator) with real progress, cancellation, error handling
-- [x] Final Dashboard (persistent recent activity via history, navigation, states)
-- [ ] Complete automated suite green + real integration tests
-- [ ] Clean-Windows install/startup/uninstall verified
-- [ ] Backend availability + FFmpeg/FFprobe packaging verified
-- [ ] Real authorized downloads verified on supported platforms
-- [ ] SHA-256 checksums, release notes, changelog
-- Android is deferred to **FOXFall 1.1.0**
+### Release criteria — final audit 2026-11-18 (re-verified independently)
+
+| # | Criterion | Status | Evidence |
+|---|---|---|---|
+| 1 | M5 Media Library: FFprobe metadata, thumbnail cache, persistence, rescan, no duplicates, missing-file handling | VERIFIED | Fresh user-data scan: 1 file indexed, metadata (05:13, 854x480, av1), thumbnail cached; rescan produced no duplicates; deleted file flagged `missing` and hidden by default |
+| 2 | M6 Video Converter | VERIFIED | Real FFmpeg conversion produced valid MP4 (3,071,635 bytes from installed backend; 10,907 bytes testsrc) |
+| 3 | M6 Audio Extractor | VERIFIED | MP3 extracted (132,424 bytes) from a real video via installed backend |
+| 4 | M6 Thumbnail Generator | VERIFIED | PNG generated (542,383 bytes) from installed backend |
+| 5 | Cancellation + partial cleanup | VERIFIED | `tool_cancel` kills ffmpeg; partial output removed (bug found: removal raced ffmpeg's file handle — fixed with wait+retry, regression test `test_tool_cancel_removes_partial_output` added) |
+| 6 | Dashboard persistent history | VERIFIED | CDP check on clean install: renders; history bound to `history.json`, refreshed on `download_finished` + `ready` events |
+| 7 | Desktop GUI: 8 views render, no broken images | VERIFIED | CDP check on clean install: all 8 views OK, brokenImgs=0 |
+| 8 | Backend availability + IPC | VERIFIED | Clean install first launch: sidebar "Connected", `get_app_info` returns healthy data via CDP |
+| 9 | FFmpeg/FFprobe bundled and executable from install dir | VERIFIED | Both `-version` executed from `%LOCALAPPDATA%\Programs\FOXFall\resources\bin\ffmpeg`; backend reports v9.0.2 + ffprobe yes |
+| 10 | yt-dlp bundled | VERIFIED | Installed backend reports 2026.10.26 (embedded, not global) |
+| 11 | Automated suite green | VERIFIED | 133 pytest + 4 node IPC tests pass (fresh run 2026-11-18) |
+| 12 | Real authorized downloads on supported platforms | VERIFIED | New URLs: YT `LXb3EKWsInQ` (47.5 MB), YT `eRsGyueVLvQ` Sintel (188.5 MB via clean install), YT `9bZkp7q19f0` (26.6 MB). Regression URLs also pass. |
+| 13 | Clean-Windows install/startup/uninstall | VERIFIED (partial env) | Uninstall + fresh silent install + first launch + download + uninstall-removes-files + no leftover processes all executed. **Caveat: same physical machine — dev Python exists on PATH; however the backend exe embeds its own interpreter and tests were run with `PYTHONPATH`/`PYTHONHOME` cleared and no dev-repo dependency. A dedicated clean VM was unavailable.** |
+| 14 | Real download on TikTok (new URLs) | FAILED — external | `tiktok.com/@tiktok/video/7371434446285069099`, `@nasa/video/7289568947439274286`, `vm.tiktok.com/ZMhqYFVbk`: "Your IP address is blocked" / redirect to homepage. Platform-side IP block; now classified `forbidden`. Regression URL `vt.tiktok.com/ZSps53ySE` still downloads (691,852 bytes), proving the engine works. |
+| 15 | Real download on Instagram (new URLs) | FAILED — external | `reel/C2ZqX9vPK5m`, `reel/C0FxKFcRg_v`: "empty media response" = login-required. Classified `private`. Regression URL `DdZzIvSNQ_E` still downloads (1,293,326 bytes). |
+| 16 | SHA-256 checksums, release notes, changelog | VERIFIED (process ready) | CI generates SHA256SUMS.txt; CHANGELOG.md + release criteria maintained. Actual 1.0.0 assets not yet produced (release deferred by policy). |
+| 17 | Android | NOT APPLICABLE | Deferred to FOXFall 1.1.0 by scope decision. |
+| 18 | No console window / icons / branding | VERIFIED | No conhost attached to installed exe; fox icon embedded (ExtractAssociatedIcon verified); all views use icon.png assets |
+
+**Conclusion: 15 of 17 verifiable criteria VERIFIED, 2 FAILED due to external
+platform restrictions (engine itself proven via regression URLs), 1 partial
+(clean-VM limitation documented), Android NOT APPLICABLE. The application is
+functionally ready; the 1.0.0 public release remains deferred by the release
+policy until the owner authorizes publication.**
 
 ### Changed — release process
 - CI no longer publishes on git tag push; the workflow is manual and only

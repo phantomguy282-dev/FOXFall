@@ -467,13 +467,21 @@ class BackendApp:
         proc = self._tool_procs.get(op_id)
         if proc and proc.poll() is None:
             proc.kill()
-            # remove the partial output, never the input
+            # ffmpeg may hold the output handle briefly after kill on Windows:
+            # wait for exit, then remove the partial output (never the input)
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
             out = self._tool_outputs.get(op_id, "")
-            if out and os.path.isfile(out):
-                try:
-                    os.remove(out)
-                except OSError:
-                    pass
+            if out:
+                for _ in range(5):
+                    if not os.path.isfile(out):
+                        break
+                    try:
+                        os.remove(out)
+                    except OSError:
+                        time.sleep(0.5)
             return {"cancelled": True}
         return {"error": "unknown or already finished operation"}
 
